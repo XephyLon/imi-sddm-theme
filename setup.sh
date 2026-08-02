@@ -25,7 +25,18 @@ readonly MATUGEN_QML_INPUT_TEMPLATE="${HYPR_THEME_SCRIPTS_DEST}/SddmColors.qml"
 readonly MATUGEN_GENERATE_SETTINGS_SCRIPT="${HYPR_THEME_SCRIPTS_DEST}/generate_settings.py"
 readonly MATUGEN_CONF="${HOME}/.config/matugen/config.toml"
 
-readonly II_CONFIG_JSON="${HOME}/.config/illogical-impulse/config.json"
+# The shell renamed itself illogical-impulse -> immaterial-impulse. Prefer the
+# current directory and fall back to the old one, so this keeps working for
+# installs on either side of that rename. A leftover illogical-impulse dir is a
+# stale copy on a migrated install, so it must never win when both exist.
+readonly II_CONFIG_JSON="$(
+    for _d in immaterial-impulse illogical-impulse; do
+        if [[ -f "${HOME}/.config/${_d}/config.json" ]]; then
+            printf '%s' "${HOME}/.config/${_d}/config.json"; exit
+        fi
+    done
+    printf '%s' "${HOME}/.config/immaterial-impulse/config.json"
+)"
 
 # === COLORS ===
 
@@ -34,6 +45,29 @@ STY_GREEN='\e[32m'
 STY_YELLOW='\e[33m'
 STY_RED='\e[31m'
 STY_RST='\e[0m'
+
+# === NON-INTERACTIVE DRIVING ===
+#
+# This installer is invoked by other installers (Immaterial Impulse hands off to
+# it from sdata/subcmd-install/5.sddm-theme.sh). Previously every confirmation
+# was an unconditional `read`, so a caller whose stdin was not a terminal got
+# EOF on the first prompt, fell through to the default case and exited 0 -
+# installing nothing, silently. Two env vars make the whole run driveable:
+#
+#   IMI_SDDM_ASSUME_YES=1                  answer every confirmation with yes
+#   IMI_SDDM_MODE=ii-matugen|matugen-only|no-matugen
+#                                          preselect the installation type
+#
+# Unset, behaviour is exactly as before.
+confirm() {
+    local prompt="$1" reply
+    if [[ "${IMI_SDDM_ASSUME_YES:-0}" == "1" ]]; then
+        printf "===> %s [y/n]: y (IMI_SDDM_ASSUME_YES)\n" "$prompt"
+        return 0
+    fi
+    read -r -p "===> ${prompt} [y/n]: " reply
+    [[ "$reply" == [yY] ]]
+}
 
 # === LOGGING ===
 
@@ -71,14 +105,10 @@ introduction() {
     printf "\n"
     printf "  ${STY_YELLOW}Note:${STY_RST} Please check what the script will do before running it.\n"
     printf "\n"
-    read -r -p "===> Continue? [y/n]: " p
-    case $p in
-        y|Y) ;;
-        *)
-            log_error "Installation aborted by user."
-            exit 0
-            ;;
-    esac
+    if ! confirm "Continue?"; then
+        log_error "Installation aborted by user."
+        exit 0
+    fi
 }
 
 # === GUARDS ===
@@ -116,17 +146,13 @@ check_git() {
     log_step "Checking for git"
     if ! command -v git &>/dev/null; then
         log_warn "git is not installed."
-        read -r -p "===> git is required to clone the theme. Install it now? [y/n]: " p
-        case $p in
-            y|Y)
-                sudo pacman -S --needed git
-                log_ok "git installed successfully."
-                ;;
-            *)
-                log_error "git is required. Installation aborted."
-                exit 1
-                ;;
-        esac
+        if confirm "git is required to clone the theme. Install it now?"; then
+            sudo pacman -S --needed git
+            log_ok "git installed successfully."
+        else
+            log_error "git is required. Installation aborted."
+            exit 1
+        fi
     else
         log_ok "git is already installed."
     fi
@@ -139,14 +165,10 @@ check_sddm_installation() {
     if ! command -v sddm &>/dev/null; then
         log_warn "SDDM is not currently installed on your system."
         log_warn "The script will proceed to install and configure SDDM along with the theme."
-        read -r -p "===> Continue with SDDM installation and theme setup? [y/n]: " p
-        case $p in
-            y|Y) ;;
-            *)
-                log_error "Installation aborted by user. SDDM is required for this theme."
-                exit 0
-                ;;
-        esac
+        if ! confirm "Continue with SDDM installation and theme setup?"; then
+            log_error "Installation aborted by user. SDDM is required for this theme."
+            exit 0
+        fi
     else
         log_ok "SDDM is already installed."
     fi
@@ -246,6 +268,22 @@ detect_configs_and_select_installation_type() {
     local max_option=$((option_num - 1))
     local range_str
     range_str=$(seq -s "-" 1 $((option_num - 1)))
+
+    # Preselected by a driving installer. Validated against the options this run
+    # actually offers, so an unavailable mode (e.g. ii-matugen with no shell
+    # config present) falls through to the prompt rather than being forced.
+    if [[ -n "${IMI_SDDM_MODE:-}" ]]; then
+        local _n
+        for _n in "${!option_map[@]}"; do
+            if [[ "${option_map[$_n]}" == "${IMI_SDDM_MODE}" ]]; then
+                INSTALLATION_TYPE="${IMI_SDDM_MODE}"
+                printf "\n"
+                log_ok "Selected installation type: ${INSTALLATION_TYPE} (IMI_SDDM_MODE)"
+                return
+            fi
+        done
+        log_warn "IMI_SDDM_MODE='${IMI_SDDM_MODE}' is not available in this run; asking instead."
+    fi
 
     while true; do
         read -r -p "===> [${range_str}]: " selected_option

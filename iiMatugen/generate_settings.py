@@ -7,8 +7,16 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 # --- Configuration ---
-PROJECT_NAME = "illogical-impulse"
-SOURCE_CONFIG = Path.home() / ".config" / PROJECT_NAME / "config.json"
+# The shell renamed itself illogical-impulse -> immaterial-impulse. Prefer the
+# current directory; fall back to the old name so this keeps working on installs
+# from either side of the rename. A leftover illogical-impulse directory is a
+# stale copy on a migrated install, so it must never win when both exist.
+PROJECT_NAMES = ("immaterial-impulse", "illogical-impulse")
+SOURCE_CONFIG = next(
+    (Path.home() / ".config" / name / "config.json"
+     for name in PROJECT_NAMES
+     if (Path.home() / ".config" / name / "config.json").is_file()),
+    Path.home() / ".config" / PROJECT_NAMES[0] / "config.json")
 SCRIPT_DIR = Path(__file__).parent.resolve()
 LOCAL_CONFIG = SCRIPT_DIR / "config.json"
 OUTPUT_QML = SCRIPT_DIR / "Settings.qml"
