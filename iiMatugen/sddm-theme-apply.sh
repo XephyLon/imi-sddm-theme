@@ -62,6 +62,52 @@ if [ -f "$SETTINGS_QML_SOURCE" ]; then
     WALLPAPER_PATH=$(grep "background_wallpaperPath:" "$SETTINGS_QML_SOURCE" | cut -d '"' -f 2 || true)
 fi
 
+# Wallpaper Engine. The shell leaves background.wallpaperPath empty while a WE
+# wallpaper is active and records the choice under wallpaperSelector instead, so
+# without this the greeter silently falls back to the stock background.
+#
+# A "video" project is a plain video file, which this script already handles -
+# it copies it in and has ffmpeg cut a poster frame for BackgroundPlaceholder.
+# "scene" and "web" need the Wallpaper Engine runtime, which the greeter does
+# not have, so those get the still the shell already renders.
+if [ -z "$WALLPAPER_PATH" ] && [ -f "$SETTINGS_QML_SOURCE" ]; then
+    we_field() {
+        grep -m1 "wallpaperSelector_wallpaperEngine_$1:" "$SETTINGS_QML_SOURCE" \
+            | cut -d '"' -f 2 || true
+    }
+    we_type="$(we_field activeType | tr '[:upper:]' '[:lower:]')"
+    we_dir="$(we_field activePath)"
+    we_still="$(we_field activeStill)"
+    we_dir="${we_dir/#\~/$USER_HOME}"
+    we_still="${we_still/#\~/$USER_HOME}"
+
+    if [ "$we_type" = "video" ] && [ -n "$we_dir" ] && [ -f "$we_dir/project.json" ]; then
+        # WE names the asset in project.json rather than by a fixed filename.
+        we_file="$(python3 -c 'import json,sys
+try:
+    print(json.load(open(sys.argv[1])).get("file") or "")
+except Exception:
+    pass' "$we_dir/project.json" 2>/dev/null || true)"
+        if [ -n "$we_file" ] && [ -f "$we_dir/$we_file" ]; then
+            # This is copied onto the root filesystem under /usr/share, so cap it.
+            # A multi-hundred-megabyte login background is a bad trade when a
+            # still of the same wallpaper costs a few hundred kilobytes.
+            we_size="$(stat -c%s "$we_dir/$we_file" 2>/dev/null || echo 0)"
+            if [ "$we_size" -le "${IMI_SDDM_MAX_VIDEO_BYTES:-104857600}" ]; then
+                WALLPAPER_PATH="$we_dir/$we_file"
+                echo "Using Wallpaper Engine video: $WALLPAPER_PATH" >&2
+            else
+                echo "Wallpaper Engine video is $((we_size / 1048576)) MiB, over the $((${IMI_SDDM_MAX_VIDEO_BYTES:-104857600} / 1048576)) MiB cap; using the still instead." >&2
+            fi
+        fi
+    fi
+
+    if [ -z "$WALLPAPER_PATH" ] && [ -n "$we_still" ] && [ -f "$we_still" ]; then
+        WALLPAPER_PATH="$we_still"
+        echo "Using Wallpaper Engine still: $WALLPAPER_PATH" >&2
+    fi
+fi
+
 # Fallback from Colors.qml
 if [ -z "$WALLPAPER_PATH" ]; then
     if [ -f "$COLORS_QML_SOURCE" ]; then
