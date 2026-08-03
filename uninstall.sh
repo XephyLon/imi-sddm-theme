@@ -3,11 +3,19 @@ set -euo pipefail
 
 # === CONFIGURATION ===
 
-readonly THEME_NAME="ii-sddm-theme"
+readonly THEME_NAME="imi-sddm-theme"
+# The pre-fork name. An install that predates the rename, or one whose
+# migration did not finish, still has everything under this name - so the
+# uninstaller has to clean up both or it silently leaves a whole theme,
+# a drop-in setting Current=, and the scripts the matugen hook calls.
+readonly LEGACY_THEME_NAME="ii-sddm-theme"
 
 readonly SDDM_THEME_DEST="/usr/share/sddm/themes/${THEME_NAME}"
 readonly SDDM_CONF_DIR="/etc/sddm.conf.d"
-readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/ii-sddm-theme.conf"
+readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/${THEME_NAME}.conf"
+readonly LEGACY_SDDM_THEME_DEST="/usr/share/sddm/themes/${LEGACY_THEME_NAME}"
+readonly LEGACY_SDDM_THEME_CONF="${SDDM_CONF_DIR}/${LEGACY_THEME_NAME}.conf"
+readonly LEGACY_HYPR_THEME_SCRIPTS_DEST="${HOME}/.config/${LEGACY_THEME_NAME}"
 
 readonly HYPR_THEME_SCRIPTS_DEST="${HOME}/.config/${THEME_NAME}"
 
@@ -49,7 +57,7 @@ fi
 # === BANNER ===
 
 show_banner() {
-    local title=" UNINSTALL ii-sddm-theme "
+    local title=" UNINSTALL ${THEME_NAME} "
     local width=${#title}
     local border
     border=$(printf '─%.0s' $(seq 1 $width))
@@ -65,7 +73,7 @@ show_banner() {
 introduction() {
     clear
     show_banner
-    printf "This script will remove the ii-sddm-theme and all its components.\n"
+    printf "This script will remove %s and all its components.\n" "${THEME_NAME}"
     printf "\n"
     printf "  ${STY_YELLOW}Note:${STY_RST} This will remove the theme, SDDM configuration, scripts,\n"
     printf "        fonts, matugen block, and sudoers rule.\n"
@@ -91,12 +99,22 @@ remove_theme() {
     else
         log_warn "${SDDM_THEME_DEST} not found, skipping"
     fi
+
+    if [[ -d "${LEGACY_SDDM_THEME_DEST}" ]]; then
+        sudo rm -rf "${LEGACY_SDDM_THEME_DEST}"
+        log_ok "Removed ${LEGACY_SDDM_THEME_DEST} (pre-rename install)"
+    fi
 }
 
 # === REMOVE SDDM CONFIGURATION ===
 
 remove_sddm_conf() {
     log_step "Removing SDDM configuration"
+
+    if [[ -f "${LEGACY_SDDM_THEME_CONF}" ]]; then
+        sudo rm -f "${LEGACY_SDDM_THEME_CONF}"
+        log_ok "Removed ${LEGACY_SDDM_THEME_CONF} (pre-rename install)"
+    fi
 
     if [[ -f "${SDDM_THEME_CONF}" ]]; then
         sudo rm -f "${SDDM_THEME_CONF}"
@@ -121,6 +139,11 @@ remove_hypr_scripts() {
         log_ok "Removed ${HYPR_THEME_SCRIPTS_DEST}"
     else
         log_warn "${HYPR_THEME_SCRIPTS_DEST} not found, skipping"
+    fi
+
+    if [[ -d "${LEGACY_HYPR_THEME_SCRIPTS_DEST}" ]]; then
+        rm -rf "${LEGACY_HYPR_THEME_SCRIPTS_DEST}"
+        log_ok "Removed ${LEGACY_HYPR_THEME_SCRIPTS_DEST} (pre-rename install)"
     fi
 }
 

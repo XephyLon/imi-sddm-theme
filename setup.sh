@@ -3,7 +3,10 @@ set -euo pipefail
 
 # === CONFIGURATION ===
 
-readonly THEME_NAME="ii-sddm-theme"
+readonly THEME_NAME="imi-sddm-theme"
+# The name this theme installed under before the fork. Everything it left
+# behind is migrated and removed by migrate_legacy_theme_name below.
+readonly LEGACY_THEME_NAME="ii-sddm-theme"
 # This fork, not 3d3f/ii-sddm-theme. The installer clones the theme content
 # rather than copying the checkout it is running from, so pointing only the
 # *installer* at this fork changed nothing on disk: every fork edit to the
@@ -17,7 +20,11 @@ readonly THEME_REPO="https://github.com/XephyLon/imi-sddm-theme"
 readonly SDDM_THEMES_DIR="/usr/share/sddm/themes"
 readonly SDDM_THEME_DEST="${SDDM_THEMES_DIR}/${THEME_NAME}"
 readonly SDDM_CONF_DIR="/etc/sddm.conf.d"
-readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/ii-sddm-theme.conf"
+# SDDM reads this before the drop-ins. Overridable purely so the legacy-name
+# migration can be exercised against a sandbox instead of the real /etc.
+readonly SDDM_MAIN_CONF="${SDDM_MAIN_CONF:-/etc/sddm.conf}"
+readonly LEGACY_SDDM_THEME_CONF="${SDDM_CONF_DIR}/${LEGACY_THEME_NAME}.conf"
+readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/${THEME_NAME}.conf"
 
 readonly HYPR_SCRIPTS_BASE="${HOME}/.config"
 readonly HYPR_THEME_SCRIPTS_DEST="${HYPR_SCRIPTS_BASE}/${THEME_NAME}"
@@ -94,7 +101,7 @@ INSTALLATION_TYPE="no-matugen"
 # === BANNER ===
 
 show_banner() {
-    local title=" SETUP ii-sddm-theme "
+    local title=" SETUP ${THEME_NAME} "
     local width=${#title}
     local border
     border=$(printf '─%.0s' $(seq 1 $width))
@@ -109,7 +116,7 @@ show_banner() {
 
 introduction() {
     show_banner
-    printf "This script will install ii-sddm-theme.\n"
+    printf "This script will install %s.\n" "${THEME_NAME}"
     printf "\n"
     printf "  ${STY_YELLOW}Note:${STY_RST} Please check what the script will do before running it.\n"
     printf "\n"
@@ -415,13 +422,91 @@ configure_sddm() {
     sudo tee "${SDDM_THEME_CONF}" >/dev/null <<EOF
 [General]
 InputMethod=qtvirtualkeyboard
-GreeterEnvironment=QML2_IMPORT_PATH=/usr/share/sddm/themes/ii-sddm-theme/Components/,QT_IM_MODULE=qtvirtualkeyboard
+GreeterEnvironment=QML2_IMPORT_PATH=${SDDM_THEME_DEST}/Components/,QT_IM_MODULE=qtvirtualkeyboard
 
 [Theme]
-Current=ii-sddm-theme
+Current=${THEME_NAME}
 EOF
 
     log_ok "SDDM configuration written to ${SDDM_THEME_CONF}"
+}
+
+# === LEGACY NAME MIGRATION ===
+#
+# This theme installed as "ii-sddm-theme" before the fork. Renaming it is not
+# just a directory move, because the theme name is a *value* SDDM resolves:
+# [Theme] Current= names a directory under /usr/share/sddm/themes, and SDDM
+# reads /etc/sddm.conf then every /etc/sddm.conf.d/*.conf in lexical order,
+# last one winning. Our own drop-in is therefore not authoritative - anything
+# sorting after it (kde_settings.conf is the common one, and it is written by
+# the KDE settings module, not by us) can carry its own Current=ii-sddm-theme.
+#
+# So removing the old directory while some later file still points at it leaves
+# SDDM with a theme name that resolves to nothing, which is a broken greeter on
+# the next boot - the one failure here that is genuinely painful to recover
+# from. Every Current= naming the old theme has to be rewritten first,
+# wherever it lives.
+#
+# Ordering is chosen so that any failure leaves the *old* install intact and
+# still referenced, rather than half-removed:
+#   1. the new theme is already installed and its drop-in written (callers run
+#      this after install_theme and configure_sddm);
+#   2. repoint every Current= that still names the old theme;
+#   3. only then remove the old directory, drop-in and scripts.
+# Re-running is harmless: with nothing left under the old name it does nothing.
+migrate_legacy_theme_name() {
+    log_step "Migrating from ${LEGACY_THEME_NAME}"
+
+    # Refuse to touch anything unless the replacement is actually in place.
+    if [[ ! -d "${SDDM_THEME_DEST}" ]]; then
+        log_warn "${SDDM_THEME_DEST} is missing; leaving ${LEGACY_THEME_NAME} alone."
+        return 0
+    fi
+
+    local repointed=0 conf
+    for conf in "${SDDM_MAIN_CONF}" "${SDDM_CONF_DIR}"/*.conf; do
+        [[ -f "${conf}" ]] || continue
+        [[ "${conf}" == "${SDDM_THEME_CONF}" ]] && continue
+        if grep -qE "^[[:space:]]*Current[[:space:]]*=[[:space:]]*${LEGACY_THEME_NAME}[[:space:]]*$" "${conf}"; then
+            if sudo sed -i -E "s|^([[:space:]]*Current[[:space:]]*=[[:space:]]*)${LEGACY_THEME_NAME}[[:space:]]*$|\1${THEME_NAME}|" "${conf}"; then
+                log_ok "Repointed ${conf} at ${THEME_NAME}"
+                repointed=$((repointed + 1))
+            else
+                log_error "Could not rewrite ${conf}; keeping ${LEGACY_THEME_NAME} so the greeter keeps working."
+                return 0
+            fi
+        fi
+        # The greeter's QML import path names the theme directory too.
+        if grep -q "themes/${LEGACY_THEME_NAME}/" "${conf}"; then
+            sudo sed -i "s|themes/${LEGACY_THEME_NAME}/|themes/${THEME_NAME}/|g" "${conf}" \
+                && log_ok "Repointed the greeter import path in ${conf}"
+        fi
+    done
+    [[ ${repointed} -eq 0 ]] || log_info "Repointed ${repointed} config file(s)."
+
+    # Our own old drop-in is superseded by SDDM_THEME_CONF; leaving it would
+    # mean two files setting Current=, decided by filename order.
+    if [[ -f "${LEGACY_SDDM_THEME_CONF}" ]]; then
+        sudo rm -f "${LEGACY_SDDM_THEME_CONF}" && log_ok "Removed ${LEGACY_SDDM_THEME_CONF}"
+    fi
+
+    if [[ -d "${SDDM_THEMES_DIR}/${LEGACY_THEME_NAME}" ]]; then
+        sudo rm -rf "${SDDM_THEMES_DIR}/${LEGACY_THEME_NAME}" \
+            && log_ok "Removed ${SDDM_THEMES_DIR}/${LEGACY_THEME_NAME}"
+    fi
+
+    # The matugen post_hook is rewritten from THEME_NAME on every run, so it
+    # already points at the new scripts directory by the time this runs.
+    if [[ -d "${HYPR_SCRIPTS_BASE}/${LEGACY_THEME_NAME}" ]]; then
+        if [[ -d "${HYPR_THEME_SCRIPTS_DEST}" ]]; then
+            rm -rf "${HYPR_SCRIPTS_BASE}/${LEGACY_THEME_NAME}" \
+                && log_ok "Removed ${HYPR_SCRIPTS_BASE}/${LEGACY_THEME_NAME}"
+        else
+            log_warn "${HYPR_THEME_SCRIPTS_DEST} is missing; keeping ${HYPR_SCRIPTS_BASE}/${LEGACY_THEME_NAME} so the matugen hook still resolves."
+        fi
+    fi
+
+    log_ok "Migration from ${LEGACY_THEME_NAME} complete."
 }
 
 # === ENABLE SDDM ===
@@ -594,7 +679,12 @@ main() {
             log_warn "Apply script not found at ${APPLY_SCRIPT}. Theme application skipped."
         fi
     fi
-    
+
+    # Last, so everything replacing the old install - the theme directory, the
+    # drop-in, the scripts directory and the rewritten matugen post_hook - is
+    # already on disk before anything is removed.
+    migrate_legacy_theme_name
+
     local msg=" Installation completed successfully "
     local width=${#msg}
     local border
