@@ -4,7 +4,15 @@ set -euo pipefail
 # === CONFIGURATION ===
 
 readonly THEME_NAME="ii-sddm-theme"
-readonly THEME_REPO="https://github.com/3d3f/ii-sddm-theme"
+# This fork, not 3d3f/ii-sddm-theme. The installer clones the theme content
+# rather than copying the checkout it is running from, so pointing only the
+# *installer* at this fork changed nothing on disk: every fork edit to the
+# theme itself - the immaterial-impulse config path in
+# iiMatugen/generate_settings.py, the Wallpaper Engine resolution in
+# iiMatugen/sddm-theme-apply.sh - was cloned straight back over from upstream
+# on each install. THEME_REPO is what decides which theme actually lands in
+# /usr/share/sddm/themes.
+readonly THEME_REPO="https://github.com/XephyLon/imi-sddm-theme"
 
 readonly SDDM_THEMES_DIR="/usr/share/sddm/themes"
 readonly SDDM_THEME_DEST="${SDDM_THEMES_DIR}/${THEME_NAME}"

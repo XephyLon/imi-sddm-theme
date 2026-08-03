@@ -59,7 +59,7 @@ Manually configure your background, colors, and settings
 The script will detect your configuration and guide you through the installation:
 
 ```sh
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/3d3f/ii-sddm-theme/main/setup.sh)"
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/XephyLon/imi-sddm-theme/main/setup.sh)"
 ```
 
 It can also be used to update the theme.
@@ -77,7 +77,7 @@ After installation, check the `GUIDE.txt` file in your `~/.config/ii-sddm-theme/
 Run the uninstall script:
 
 ```sh
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/3d3f/ii-sddm-theme/main/uninstall.sh)"
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/XephyLon/imi-sddm-theme/main/uninstall.sh)"
 ```
 
 This will remove the SDDM theme, configuration, scripts, fonts, Matugen block, and sudoers rule. A reboot is required to fully apply the changes.
@@ -106,4 +106,4 @@ Inherits=Bibata-Modern-Classic
 
 ## Issues & Questions
 
-For bug reports, questions, or feature requests, please [open an issue](https://github.com/3d3f/ii-sddm-theme/issues/new/choose).
+For bug reports, questions, or feature requests, please [open an issue](https://github.com/XephyLon/imi-sddm-theme/issues/new/choose).
