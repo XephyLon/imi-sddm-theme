@@ -57,20 +57,29 @@ fi
 # --- Extract wallpaper path ---
 WALLPAPER_PATH=""
 
-# Extract wallpaper path from generated Settings.qml
-if [ -f "$SETTINGS_QML_SOURCE" ]; then
-    WALLPAPER_PATH=$(grep "background_wallpaperPath:" "$SETTINGS_QML_SOURCE" | cut -d '"' -f 2 || true)
-fi
-
-# Wallpaper Engine. The shell leaves background.wallpaperPath empty while a WE
-# wallpaper is active and records the choice under wallpaperSelector instead, so
-# without this the greeter silently falls back to the stock background.
+# Wallpaper Engine is resolved FIRST, not as a fallback.
+#
+# The earlier version of this only looked at Wallpaper Engine when
+# background.wallpaperPath was empty, on the assumption that the shell clears
+# that key while a WE wallpaper is active. It does not: WallpaperEngine.qml's
+# apply() records the project and leaves background.wallpaperPath exactly as it
+# was, so on any install that used a static wallpaper before switching to WE,
+# both are set and the stale static path won. The greeter then showed whatever
+# picture the user had chosen before, which reads as "the login screen ignores
+# my wallpaper".
+#
+# The shell's own precedence is in modules/imi/background/Background.qml:
+#   weActive: activePath !== "" && activeType.toLowerCase() !== "web"
+# i.e. Wallpaper Engine wins whenever a project is set and it is not a "web"
+# one, regardless of background.wallpaperPath. Mirror that here so the greeter
+# and the desktop agree on which wallpaper is current.
 #
 # A "video" project is a plain video file, which this script already handles -
 # it copies it in and has ffmpeg cut a poster frame for BackgroundPlaceholder.
-# "scene" and "web" need the Wallpaper Engine runtime, which the greeter does
-# not have, so those get the still the shell already renders.
-if [ -z "$WALLPAPER_PATH" ] && [ -f "$SETTINGS_QML_SOURCE" ]; then
+# "scene" needs the Wallpaper Engine runtime, which the greeter does not have,
+# so it gets the still the shell already renders. "web" needs CEF/Chromium and
+# the shell itself falls back to the static wallpaper for it, so this does too.
+if [ -f "$SETTINGS_QML_SOURCE" ]; then
     we_field() {
         grep -m1 "wallpaperSelector_wallpaperEngine_$1:" "$SETTINGS_QML_SOURCE" \
             | cut -d '"' -f 2 || true
@@ -81,7 +90,14 @@ if [ -z "$WALLPAPER_PATH" ] && [ -f "$SETTINGS_QML_SOURCE" ]; then
     we_dir="${we_dir/#\~/$USER_HOME}"
     we_still="${we_still/#\~/$USER_HOME}"
 
-    if [ "$we_type" = "video" ] && [ -n "$we_dir" ] && [ -f "$we_dir/project.json" ]; then
+    # No project, or a "web" one: leave WALLPAPER_PATH empty so the static
+    # wallpaper below is used, exactly as the shell does.
+    if [ -z "$we_dir" ] || [ "$we_type" = "web" ]; then
+        we_type=""
+        we_still=""
+    fi
+
+    if [ "$we_type" = "video" ] && [ -f "$we_dir/project.json" ]; then
         # WE names the asset in project.json rather than by a fixed filename.
         we_file="$(python3 -c 'import json,sys
 try:
@@ -106,6 +122,13 @@ except Exception:
         WALLPAPER_PATH="$we_still"
         echo "Using Wallpaper Engine still: $WALLPAPER_PATH" >&2
     fi
+fi
+
+# The static wallpaper: used when no Wallpaper Engine project is active, when
+# it is a "web" one, or when its asset could not be resolved (missing still,
+# oversized video).
+if [ -z "$WALLPAPER_PATH" ] && [ -f "$SETTINGS_QML_SOURCE" ]; then
+    WALLPAPER_PATH=$(grep "background_wallpaperPath:" "$SETTINGS_QML_SOURCE" | cut -d '"' -f 2 || true)
 fi
 
 # Fallback from Colors.qml
