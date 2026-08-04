@@ -28,8 +28,9 @@ A `vX.Y.Z` pin makes that legible at a glance.
    ```
 
 2. **Static review only.** Do not run `setup.sh`, `uninstall.sh` or `check.sh`
-   to "verify" a release: they modify the real system as root, and `check.sh`
-   still reports FAIL on a correct install (#4). See AGENTS.md.
+   to "verify" a release: they modify the real system as root. See AGENTS.md
+   for the tempdir-plus-`sudo`-stub sandbox — that is how the check logic gets
+   exercised without touching `/etc`.
 
 3. Roll `CHANGELOG.md` — move the `[Unreleased]` items under the new version
    with today's date — and bump `VERSION`.

@@ -62,15 +62,21 @@ Every `sed -i`, `mv`, `rm` and redirect that touches `/etc` or `/usr/share` need
 - an ordering where an interruption leaves a **working** install, not a half-migrated one. The rule the
   migration follows: put the replacement in place first, repoint config second, delete last.
 
-### Sandboxing is not currently safe
+### Sandboxing
 
-Only `SDDM_MAIN_CONF` is overridable. `SDDM_CONF_DIR` and `SDDM_THEMES_DIR` are hardcoded, so a
-"sandboxed" migration test still `sudo sed -i`s the real `/etc/sddm.conf.d`. A previous session's
-sandbox test leaked onto the real `/etc/sddm.conf` and was saved only by a permissions error.
+`SDDM_MAIN_CONF`, `SDDM_CONF_DIR` and `SDDM_THEMES_DIR` are overridable in `setup.sh`,
+`uninstall.sh` and `check.sh`; `check.sh` additionally takes `PRIV_SCRIPT_DIR`. Point them at a
+tempdir, put a `sudo` stub that refuses everything on `PATH`, and the logic can be exercised without
+reaching the real system. `uninstall.sh` and `check.sh` only run `main` when executed, not when
+sourced, so individual functions can be driven directly.
 
-Until those are parameterised, do not build a migration sandbox. If you do any work near these paths,
-verify afterwards that `/etc/sddm.conf` and every file in `/etc/sddm.conf.d/` is byte-identical to how
-you found it, and say so explicitly in your report.
+That is a sandbox for *reading and reasoning*, not a licence to run the installers: a stub can only
+block what the script routes through `sudo`, and one missed path is a root write to `/etc`. A
+previous session's sandbox test leaked onto the real `/etc/sddm.conf` and was saved only by a
+permissions error.
+
+If you do any work near these paths, verify afterwards that `/etc/sddm.conf` and every file in
+`/etc/sddm.conf.d/` is byte-identical to how you found it, and say so explicitly in your report.
 
 ### Wallpaper resolution
 

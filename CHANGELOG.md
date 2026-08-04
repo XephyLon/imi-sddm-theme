@@ -12,6 +12,45 @@ Until this file existed the repo had **no tags at all**, so it could only be
 pinned by SHA — the mode that goes stale invisibly, and did: three separate
 defects below shipped behind a pin nobody noticed was old.
 
+## [Unreleased]
+
+### Fixed
+- **`check.sh` reported FAIL on a correct install.** It still described the
+  pre-rename layout end to end — `ii-sddm-theme` everywhere, the unprefixed
+  drop-in, the apply script inside `~/.config` — so on a current install it
+  failed the theme directory, the drop-in and the scripts directory, and told
+  the user to re-run `setup.sh`, which changed none of them
+  ([#4](https://github.com/XephyLon/imi-sddm-theme/issues/4)). It now derives
+  every path from the same variables `setup.sh` and `uninstall.sh` use, and
+  takes the same `SDDM_THEMES_DIR` / `SDDM_CONF_DIR` / `SDDM_MAIN_CONF`
+  overrides (plus `PRIV_SCRIPT_DIR`) so it can be exercised against a tempdir.
+
+### Added
+- `check.sh` now detects the failures it previously could not see:
+  - **generated colours that never reached the greeter** — the signature of
+    [#1](https://github.com/XephyLon/imi-sddm-theme/issues/1), where the apply
+    script exited before copying anything and the installer still reported
+    success. `Colors.qml`/`Settings.qml` in the config directory are compared
+    against the copies inside the installed theme.
+  - **a config that outranks ours** — a drop-in sorting after
+    `zz-imi-sddm-theme.conf`, or any `Current=` in `/etc/sddm.conf`, decides the
+    theme instead of us. This is the failure that reports success and shows the
+    wrong greeter anyway.
+  - **an apply script that is not root-owned along its whole path**, or a
+    sudoers rule naming some other path. A `NOPASSWD` rule on a user-writable
+    target is equivalent to `NOPASSWD: ALL`.
+  - **a matugen `post_hook` without its `[templates.iisddmtheme]` block**, or
+    one sitting outside that block — the half-restored state the hub's dots sync
+    used to produce
+    ([immaterial-impulse#101](https://github.com/XephyLon/immaterial-impulse/issues/101)).
+    The hook fires forever and regenerates nothing.
+  - leftovers from the pre-rename install: the old theme directory, the old
+    scripts directory, and superseded drop-ins that still set `Current=`.
+
+### Changed
+- `check.sh` only runs `main` when executed, not when sourced, so its checks can
+  be driven individually against a sandbox rather than the real system.
+
 ## [0.1.1] — 2026-08-04
 
 ### Fixed
