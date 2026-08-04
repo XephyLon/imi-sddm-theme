@@ -37,8 +37,12 @@ fi
 
 # --- Directories ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC="$USER_HOME/.config/ii-sddm-theme"
-DEST="/usr/share/sddm/themes/ii-sddm-theme"
+# Must match THEME_NAME in setup.sh - see the note in iiMatugen's copy. Stale
+# here means the matugen post_hook fails on every wallpaper change, because SRC
+# no longer exists once the install migrates the config directory.
+THEME_NAME="${THEME_NAME:-imi-sddm-theme}"
+SRC="$USER_HOME/.config/$THEME_NAME"
+DEST="/usr/share/sddm/themes/$THEME_NAME"
 
 # --- Colors.qml source ---
 COLORS_QML_SOURCE="$SCRIPT_DIR/Colors.qml"

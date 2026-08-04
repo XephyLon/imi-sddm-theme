@@ -6,7 +6,11 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # === SDDM install destination ===
-DEST="/usr/share/sddm/themes/ii-sddm-theme"
+# Must match THEME_NAME in setup.sh. Left at the pre-fork name through the
+# becaa77 rename, this wrote into the legacy directory that the same install run
+# then deleted, so the background never reached the installed theme.
+THEME_NAME="${THEME_NAME:-imi-sddm-theme}"
+DEST="/usr/share/sddm/themes/$THEME_NAME"
 
 # === Validate function ===
 validate_path() {

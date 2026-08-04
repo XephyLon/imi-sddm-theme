@@ -658,11 +658,22 @@ main() {
                 fi
             fi
 
-            if sudo bash "${APPLY_SCRIPT}" >/dev/null 2>&1 || true; then
+            # `|| true` made this condition unconditionally true, so the else
+            # branch was dead code and the installer printed "Theme applied."
+            # no matter what the script did - which is how a permanently failing
+            # apply survived the becaa77 rename unnoticed. Still non-fatal, but
+            # now reported honestly, and with the output that was being thrown
+            # away.
+            local apply_rc=0 apply_log
+            apply_log="$(mktemp)"
+            sudo bash "${APPLY_SCRIPT}" >"${apply_log}" 2>&1 || apply_rc=$?
+            if (( apply_rc == 0 )); then
                 log_ok "Theme applied."
             else
-                log_warn "Failed to apply theme automatically. Run manually: sudo ${APPLY_SCRIPT}"
+                log_warn "Failed to apply theme automatically (exit ${apply_rc}). Run manually: sudo ${APPLY_SCRIPT}"
+                sed 's/^/    /' "${apply_log}" >&2
             fi
+            rm -f "${apply_log}"
         else
             log_warn "Apply script not found at ${APPLY_SCRIPT}. Theme will be applied on next Matugen run."
         fi
@@ -670,11 +681,22 @@ main() {
     elif [[ "${INSTALLATION_TYPE}" == "no-matugen" ]]; then
         log_step "Applying SDDM theme"
         if [[ -f "${APPLY_SCRIPT}" ]]; then
-            if sudo bash "${APPLY_SCRIPT}" >/dev/null 2>&1 || true; then
+            # `|| true` made this condition unconditionally true, so the else
+            # branch was dead code and the installer printed "Theme applied."
+            # no matter what the script did - which is how a permanently failing
+            # apply survived the becaa77 rename unnoticed. Still non-fatal, but
+            # now reported honestly, and with the output that was being thrown
+            # away.
+            local apply_rc=0 apply_log
+            apply_log="$(mktemp)"
+            sudo bash "${APPLY_SCRIPT}" >"${apply_log}" 2>&1 || apply_rc=$?
+            if (( apply_rc == 0 )); then
                 log_ok "Theme applied."
             else
-                log_warn "Failed to apply theme automatically. Run manually: sudo ${APPLY_SCRIPT}"
+                log_warn "Failed to apply theme automatically (exit ${apply_rc}). Run manually: sudo ${APPLY_SCRIPT}"
+                sed 's/^/    /' "${apply_log}" >&2
             fi
+            rm -f "${apply_log}"
         else
             log_warn "Apply script not found at ${APPLY_SCRIPT}. Theme application skipped."
         fi

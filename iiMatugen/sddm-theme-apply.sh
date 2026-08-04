@@ -35,8 +35,13 @@ fi
 
 # --- Directories ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC="$USER_HOME/.config/ii-sddm-theme"
-DEST="/usr/share/sddm/themes/ii-sddm-theme"
+# Must match THEME_NAME in setup.sh. This script is what actually copies the
+# user's wallpaper, Colors.qml and Settings.qml into the installed theme, so a
+# stale name here means a successful-looking install that never applies anything
+# (it was left at the pre-fork name through the becaa77 rename).
+THEME_NAME="${THEME_NAME:-imi-sddm-theme}"
+SRC="$USER_HOME/.config/$THEME_NAME"
+DEST="/usr/share/sddm/themes/$THEME_NAME"
 
 # --- QML Sources ---
 COLORS_QML_SOURCE="$SCRIPT_DIR/Colors.qml"
