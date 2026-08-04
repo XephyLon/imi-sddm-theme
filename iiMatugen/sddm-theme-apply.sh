@@ -96,7 +96,14 @@ if [ -f "$SETTINGS_QML_SOURCE" ]; then
     }
     we_type="$(we_field activeType | tr '[:upper:]' '[:lower:]')"
     we_dir="$(we_field activePath)"
-    we_still="$(we_field activeStill)"
+    # activePreview, not activeStill. The still was written by shell code that
+    # the selector-only refactor removed, so it sits frozen at whatever project
+    # was active that day and the greeter served a wallpaper from months ago
+    # (immaterial-impulse#103). activePreview is written by
+    # WallpaperEngine.apply() on every switch and always names the active
+    # project, at the cost of being a preview-sized image rather than a
+    # full-resolution still - a scene wallpaper has no full-res still at all.
+    we_still="$(we_field activePreview)"
     we_dir="${we_dir/#\~/$USER_HOME}"
     we_still="${we_still/#\~/$USER_HOME}"
 
@@ -130,7 +137,7 @@ except Exception:
 
     if [ -z "$WALLPAPER_PATH" ] && [ -n "$we_still" ] && [ -f "$we_still" ]; then
         WALLPAPER_PATH="$we_still"
-        echo "Using Wallpaper Engine still: $WALLPAPER_PATH" >&2
+        echo "Using Wallpaper Engine preview: $WALLPAPER_PATH" >&2
     fi
 fi
 
