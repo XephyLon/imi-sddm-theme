@@ -12,6 +12,23 @@ Until this file existed the repo had **no tags at all**, so it could only be
 pinned by SHA — the mode that goes stale invisibly, and did: three separate
 defects below shipped behind a pin nobody noticed was old.
 
+## [0.1.1] — 2026-08-04
+
+### Fixed
+- **The greeter showed a wallpaper from months ago.** It read the shell's
+  `activeStill`, and nothing has written that field since the shell's
+  selector-only refactor removed the code that generated those stills
+  ([immaterial-impulse#103](https://github.com/XephyLon/immaterial-impulse/issues/103)).
+  It sat frozen at whatever project was active that day, and applying a preset
+  restored the stale value rather than correcting it. It now reads
+  `activePreview`, which the shell writes on every wallpaper switch and which
+  always names the active project.
+
+  The trade-off: `preview.jpg` is preview-sized, so the greeter background is
+  lower resolution than a full still. A *scene* wallpaper has no full-resolution
+  still at all — the shell used to render one, and that renderer is gone — so
+  this is the best available source until still generation is revived.
+
 ## [0.1.0] — 2026-08-04
 
 First tagged release. Everything below was already on `main`; this is the point
