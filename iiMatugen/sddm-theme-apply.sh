@@ -130,7 +130,33 @@ except Exception:
                 WALLPAPER_PATH="$we_dir/$we_file"
                 echo "Using Wallpaper Engine video: $WALLPAPER_PATH" >&2
             else
-                echo "Wallpaper Engine video is $((we_size / 1048576)) MiB, over the $((${IMI_SDDM_MAX_VIDEO_BYTES:-104857600} / 1048576)) MiB cap; using the still instead." >&2
+                echo "Wallpaper Engine video is $((we_size / 1048576)) MiB, over the $((${IMI_SDDM_MAX_VIDEO_BYTES:-104857600} / 1048576)) MiB cap." >&2
+                # Cut the still out of the video rather than falling back to
+                # activePreview. The preview is a Workshop thumbnail - often
+                # square and around 1024px - so on a wide display it was cropped
+                # to a narrow band and upscaled several times over
+                # (immaterial-impulse#113). The video is the wallpaper at its
+                # real resolution, so a frame from it matches the display
+                # exactly, for the same few hundred kilobytes on disk.
+                #
+                # No -vf scale: whatever the video's resolution is, that is the
+                # wallpaper's own resolution, and the greeter scales to fit.
+                # JPEG, not PNG: at 5120x1440 a lossless frame is ~6.4 MiB
+                # against ~1 MiB at -q:v 2, and the source is a photographic
+                # render where the difference is not visible. It also keeps the
+                # background comparable in size to the preview it replaces.
+                WE_FRAME_TEMP="/tmp/sddm_we_frame_$$.jpg"
+                if ffmpeg -y -i "$we_dir/$we_file" -ss 00:00:01.000 -vframes 1 \
+                        -q:v 2 "$WE_FRAME_TEMP" >/dev/null 2>&1 && [ -s "$WE_FRAME_TEMP" ]; then
+                    WALLPAPER_PATH="$WE_FRAME_TEMP"
+                    echo "Using a native-resolution frame cut from the video." >&2
+                else
+                    # Not fatal: the preview below is still better than nothing,
+                    # and a login screen must not fail to apply over a thumbnail.
+                    echo "Could not cut a frame from the video; falling back to the preview." >&2
+                    rm -f "$WE_FRAME_TEMP"
+                    WE_FRAME_TEMP=""
+                fi
             fi
         fi
     fi
@@ -262,6 +288,9 @@ if [ "$IS_VIDEO" = true ]; then
     sudo cp --no-dereference --preserve=mode,timestamps "$PLACEHOLDER_TEMP" "$DEST/Backgrounds/$PLACEHOLDER_FILENAME"
     rm -f "$PLACEHOLDER_TEMP"
 fi
+
+# The frame cut from an oversized Wallpaper Engine video, once copied in.
+[ -n "${WE_FRAME_TEMP:-}" ] && rm -f "$WE_FRAME_TEMP"
 
 sudo chmod 644 "$DEST/Components/Colors.qml" "$DEST/Components/Settings.qml" "$DEST/Backgrounds/$BACKGROUND_FILENAME" "$DEST/Themes/ii-sddm.conf"
 [ "$IS_VIDEO" = true ] && sudo chmod 644 "$DEST/Backgrounds/$PLACEHOLDER_FILENAME"
