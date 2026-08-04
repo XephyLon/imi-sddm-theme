@@ -14,6 +14,19 @@ defects below shipped behind a pin nobody noticed was old.
 
 ## [Unreleased]
 
+### Fixed
+- **A downstream `SDDM_REF` pin did not cover the theme content.** A caller pins
+  this repo by fetching `setup.sh` at a ref — but `setup.sh` then cloned the
+  theme from the default branch, so the pin held the installer while what
+  actually landed in `/usr/share/sddm/themes` was whatever `main` was at that
+  moment ([#5](https://github.com/XephyLon/imi-sddm-theme/issues/5)). A pin that
+  had not moved in months still installed today's theme, and nothing said so.
+  `setup.sh` now honours `IMI_SDDM_THEME_REF` and checks the clone out at it, so
+  the installer and the content it installs come from one revision. A ref that
+  cannot be fetched is a hard failure — falling back to the default branch would
+  install a revision nobody asked for, which is the bug being fixed. Unset (a
+  local checkout, or any caller predating this) keeps the old behaviour.
+
 ## [0.2.0] — 2026-08-04
 
 ### Fixed
