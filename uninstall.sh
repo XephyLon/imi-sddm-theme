@@ -35,6 +35,11 @@ readonly MATUGEN_CONF="${HOME}/.config/matugen/config.toml"
 
 readonly USERNAME="${USER}"
 readonly SUDOERS_FILE="/etc/sudoers.d/sddm-theme-${USERNAME}"
+# Must match setup.sh. The apply script is root-owned outside $HOME because the
+# sudoers rule above names it NOPASSWD and sudo matches by path; the legacy
+# location is where it used to sit, inside the user's own config directory.
+readonly PRIV_SCRIPT_DIR="/usr/local/lib/${THEME_NAME}"
+readonly LEGACY_APPLY_SCRIPT="${HYPR_THEME_SCRIPTS_DEST}/sddm-theme-apply.sh"
 
 readonly FONTS_DIR="/usr/share/fonts/ii-sddm-theme-fonts"
 
@@ -330,11 +335,28 @@ remove_matugen_conf() {
 remove_sudoers() {
     log_step "Removing sudoers rule"
 
+    # The rule goes FIRST. It is the only thing here that grants standing root,
+    # and it outlives everything else it names: removing the script while the
+    # rule survives leaves a NOPASSWD rule pointing at a path that no longer
+    # exists - which becomes an escalation again the moment anything can create
+    # that path. Order matters more than tidiness.
     if sudo test -f "${SUDOERS_FILE}"; then
         sudo rm -f "${SUDOERS_FILE}"
         log_ok "Removed ${SUDOERS_FILE}"
     else
         log_warn "${SUDOERS_FILE} not found, skipping"
+    fi
+
+    if sudo test -d "${PRIV_SCRIPT_DIR}"; then
+        sudo rm -rf "${PRIV_SCRIPT_DIR}"
+        log_ok "Removed ${PRIV_SCRIPT_DIR}"
+    fi
+
+    # Installs predating the move kept the apply script inside the user's config
+    # directory, which is what made the rule an escalation in the first place.
+    if [[ -f "${LEGACY_APPLY_SCRIPT}" ]]; then
+        rm -f "${LEGACY_APPLY_SCRIPT}"
+        log_ok "Removed ${LEGACY_APPLY_SCRIPT} (pre-move install)"
     fi
 }
 

@@ -36,7 +36,12 @@ if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
 fi
 
 # --- Directories ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# This script is installed ROOT-OWNED, outside the user's home, because a
+# sudoers rule names it NOPASSWD and sudo matches by PATH, not by owner: a rule
+# pointing at a user-writable file is functionally NOPASSWD: ALL. So the script's
+# own location is deliberately NOT where its data lives - every input below is
+# read from $SRC (the user's config dir) rather than from alongside the script.
+# Do not reintroduce a SCRIPT_DIR-relative read here.
 # Must match THEME_NAME in setup.sh - see the note in iiMatugen's copy. Stale
 # here means the matugen post_hook fails on every wallpaper change, because SRC
 # no longer exists once the install migrates the config directory.
@@ -45,7 +50,7 @@ SRC="$USER_HOME/.config/$THEME_NAME"
 DEST="/usr/share/sddm/themes/$THEME_NAME"
 
 # --- Colors.qml source ---
-COLORS_QML_SOURCE="$SCRIPT_DIR/Colors.qml"
+COLORS_QML_SOURCE="$SRC/Colors.qml"
 
 # Validate source directory
 if [ ! -d "$SRC" ]; then
@@ -77,7 +82,7 @@ WALLPAPER_PATH="${WALLPAPER_PATH/#\~/$USER_HOME}"
 
 # Convert relative to absolute if needed
 if [[ "$WALLPAPER_PATH" != /* ]]; then
-    WALLPAPER_PATH="$SCRIPT_DIR/$WALLPAPER_PATH"
+    WALLPAPER_PATH="$SRC/$WALLPAPER_PATH"
 fi
 
 # Validate wallpaper file
@@ -114,9 +119,9 @@ if [ "$IS_IMAGE" = false ] && [ "$IS_VIDEO" = false ]; then
 fi
 
 # --- Modify ii-sddm.conf dynamically ---
-CONF_FILE="$SCRIPT_DIR/ii-sddm.conf"
+CONF_FILE="$SRC/ii-sddm.conf"
 if [ ! -f "$CONF_FILE" ]; then
-    echo "Error: ii-sddm.conf not found in $SCRIPT_DIR" >&2
+    echo "Error: ii-sddm.conf not found in $SRC" >&2
     exit 9
 fi
 
@@ -141,8 +146,8 @@ fi
 
 # --- Validate required files ---
 REQUIRED_FILES=(
-    "$SCRIPT_DIR/Colors.qml"
-    "$SCRIPT_DIR/Settings.qml"
+    "$SRC/Colors.qml"
+    "$SRC/Settings.qml"
     "$CONF_FILE"
 )
 
@@ -164,8 +169,8 @@ sudo mkdir -p -m 755 "$DEST/Components"
 sudo mkdir -p -m 755 "$DEST/Backgrounds"
 sudo mkdir -p -m 755 "$DEST/Themes"
 
-sudo cp --no-dereference --preserve=mode,timestamps "$SCRIPT_DIR/Colors.qml" "$DEST/Components/Colors.qml"
-sudo cp --no-dereference --preserve=mode,timestamps "$SCRIPT_DIR/Settings.qml" "$DEST/Components/Settings.qml"
+sudo cp --no-dereference --preserve=mode,timestamps "$SRC/Colors.qml" "$DEST/Components/Colors.qml"
+sudo cp --no-dereference --preserve=mode,timestamps "$SRC/Settings.qml" "$DEST/Components/Settings.qml"
 sudo cp --no-dereference --preserve=mode,timestamps "$WALLPAPER_PATH" "$DEST/Backgrounds/$BACKGROUND_FILENAME"
 sudo cp --no-dereference --preserve=mode,timestamps "$CONF_FILE" "$DEST/Themes/ii-sddm.conf"
 

@@ -2,15 +2,34 @@
 
 set -euo pipefail
 
-# === Resolve script directory ===
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# This script is installed ROOT-OWNED, outside the user's home, because a
+# sudoers rule names it NOPASSWD and sudo matches by PATH, not by owner: a rule
+# pointing at a user-writable file is functionally NOPASSWD: ALL. So the script's
+# own location is deliberately NOT where its data lives - every input below is
+# read from $SRC (the user's config dir) rather than from alongside the script.
+# Do not reintroduce a SCRIPT_DIR-relative read here.
+
+# === The invoking user, not root ===
+# Run through sudo, so $USER is root and $HOME is /root; SUDO_USER is the human.
+REAL_USER="${SUDO_USER:-$USER}"
+USER_HOME="$(eval echo "~$REAL_USER")"
+if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
+    echo "❌ Error: invalid user home directory for '$REAL_USER'" >&2
+    exit 1
+fi
 
 # === SDDM install destination ===
 # Must match THEME_NAME in setup.sh. Left at the pre-fork name through the
 # becaa77 rename, this wrote into the legacy directory that the same install run
 # then deleted, so the background never reached the installed theme.
 THEME_NAME="${THEME_NAME:-imi-sddm-theme}"
+SRC="$USER_HOME/.config/$THEME_NAME"
 DEST="/usr/share/sddm/themes/$THEME_NAME"
+
+if [ ! -d "$SRC" ]; then
+    echo "❌ Error: source directory not found: $SRC" >&2
+    exit 1
+fi
 
 # === Validate function ===
 validate_path() {
@@ -29,16 +48,16 @@ validate_path() {
     return 0
 }
 
-echo "🔍 Searching for background file in $SCRIPT_DIR ..."
+echo "🔍 Searching for background file in $SRC ..."
 
-# === Locate wallpaper in script directory ===
+# === Locate wallpaper in the user's config directory ===
 shopt -s nullglob
-wallpapers=( "$SCRIPT_DIR"/background.* )
+wallpapers=( "$SRC"/background.* )
 shopt -u nullglob
 
 if [ ${#wallpapers[@]} -eq 0 ]; then
-    echo "❌ No 'background.*' file found in script directory."
-    echo "➡️ Please place an image or video named **background** in the same folder as this script."
+    echo "❌ No 'background.*' file found in $SRC."
+    echo "➡️ Please place an image or video named **background** in that directory."
     echo "   Example: background.png, background.jpg, background.mp4"
     exit 3
 fi
@@ -70,7 +89,7 @@ BACKGROUND_FILENAME="background.${WALLPAPER_EXT_LOWER}"
 BACKGROUND_SOURCE="$WALLPAPER_PATH"
 
 # === Validate config file ===
-CONF_FILE="$SCRIPT_DIR/ii-sddm.conf"
+CONF_FILE="$SRC/ii-sddm.conf"
 CONF_FILE=$(validate_path "$CONF_FILE" "Configuration file") || exit 9
 
 # === Modify config depending on image or video ===
@@ -82,7 +101,7 @@ if $IS_IMAGE; then
         "$CONF_FILE"
 else
     echo "🎥 Detected wallpaper type: video (thumbnail will be generated)"
-    PLACEHOLDER="$SCRIPT_DIR/placeholder.png"
+    PLACEHOLDER="$SRC/placeholder.png"
 
     if ! command -v ffmpeg &> /dev/null; then
         echo "❌ ffmpeg not installed. Please install ffmpeg to use video wallpapers."
@@ -103,8 +122,8 @@ echo "📦 Installing theme files to SDDM..."
 sudo mkdir -p "$DEST/Components" "$DEST/Backgrounds" "$DEST/Themes"
 
 # Copy components and config
-sudo cp "$SCRIPT_DIR/Colors.qml" "$DEST/Components/"
-sudo cp "$SCRIPT_DIR/Settings.qml" "$DEST/Components/"
+sudo cp "$SRC/Colors.qml" "$DEST/Components/"
+sudo cp "$SRC/Settings.qml" "$DEST/Components/"
 sudo cp "$BACKGROUND_SOURCE" "$DEST/Backgrounds/$BACKGROUND_FILENAME"
 sudo cp "$CONF_FILE" "$DEST/Themes/ii-sddm.conf"
 

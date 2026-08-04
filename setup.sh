@@ -44,7 +44,14 @@ readonly DATE=$(date +%s)
 readonly CLONE_DIR="/tmp/${THEME_NAME}-repo-${DATE}"
 
 readonly USERNAME="${USER}"
-readonly APPLY_SCRIPT="${HYPR_THEME_SCRIPTS_DEST}/sddm-theme-apply.sh"
+# Root-owned, outside $HOME, because a NOPASSWD sudoers rule names it. sudo
+# matches by path, so a rule pointing anywhere the user can write is equivalent
+# to NOPASSWD: ALL. The script's inputs still live in HYPR_THEME_SCRIPTS_DEST.
+readonly PRIV_SCRIPT_DIR="/usr/local/lib/${THEME_NAME}"
+readonly APPLY_SCRIPT="${PRIV_SCRIPT_DIR}/sddm-theme-apply.sh"
+# Where earlier versions put it - user-writable, and still named by any sudoers
+# rule those versions installed. Removed on install and on uninstall.
+readonly LEGACY_APPLY_SCRIPT="${HYPR_THEME_SCRIPTS_DEST}/sddm-theme-apply.sh"
 readonly SUDOERS_FILE="/etc/sudoers.d/sddm-theme-${USERNAME}"
 
 readonly MATUGEN_QML_INPUT_TEMPLATE="${HYPR_THEME_SCRIPTS_DEST}/SddmColors.qml"
@@ -392,9 +399,26 @@ copy_specific_files_to_hypr() {
         return 1
     fi
 
-    if [[ -f "${APPLY_SCRIPT}" ]]; then
-        chmod +x "${APPLY_SCRIPT}"
-        log_ok "Made ${APPLY_SCRIPT} executable."
+    # The apply script is the one thing here that runs as ROOT without a
+    # password, so it must not live where the user can rewrite it. sudo matches a
+    # sudoers rule by PATH, not by owner or content: a NOPASSWD rule naming a
+    # file under $HOME is functionally NOPASSWD: ALL, because anything running as
+    # the user can replace that file and then ask sudo to execute it.
+    #
+    # So it is installed root-owned outside the home directory, and the copy that
+    # landed in the user's config dir is removed - leaving it would be a
+    # user-writable file with the same name one directory away from a rule that
+    # used to point at it. Its DATA still lives in the config dir; only the
+    # executable moves (see the header of sddm-theme-apply.sh).
+    local staged_apply="${HYPR_THEME_SCRIPTS_DEST}/sddm-theme-apply.sh"
+    if [[ -f "${staged_apply}" ]]; then
+        sudo install -d -o root -g root -m 755 "${PRIV_SCRIPT_DIR}"
+        sudo install -o root -g root -m 755 "${staged_apply}" "${APPLY_SCRIPT}"
+        rm -f "${staged_apply}"
+        log_ok "Installed the apply script root-owned at ${APPLY_SCRIPT}."
+    else
+        log_error "No sddm-theme-apply.sh in ${source_dir}; the theme cannot be applied."
+        return 1
     fi
 
     if [[ "${INSTALLATION_TYPE}" == "ii-matugen" ]] && [[ -f "${MATUGEN_GENERATE_SETTINGS_SCRIPT}" ]]; then
@@ -578,13 +602,13 @@ configure_matugen() {
             log_error "Apply script ${APPLY_SCRIPT} not found for ii-matugen integration. Skipping Matugen post-hook configuration."
             return 1
         fi
-        post_hook_command="python3 ~/.config/${THEME_NAME}/generate_settings.py && sudo ~/.config/${THEME_NAME}/sddm-theme-apply.sh &"
+        post_hook_command="python3 ~/.config/${THEME_NAME}/generate_settings.py && sudo ${APPLY_SCRIPT} &"
     elif [[ "${INSTALLATION_TYPE}" == "matugen-only" ]]; then
         if [[ ! -f "${APPLY_SCRIPT}" ]]; then
             log_error "Apply script ${APPLY_SCRIPT} not found for Matugen-only integration. Skipping Matugen post-hook configuration."
             return 1
         fi
-        post_hook_command="sudo ~/.config/${THEME_NAME}/sddm-theme-apply.sh &"
+        post_hook_command="sudo ${APPLY_SCRIPT} &"
     fi
 
     # Remove existing [templates.iisddmtheme] block
@@ -638,6 +662,34 @@ setup_sudoers() {
         log_warn "Apply script not found at expected path (${APPLY_SCRIPT}). Sudoers configuration cannot proceed."
         return 0
     fi
+
+    # The check visudo cannot do. `visudo -c` validates SYNTAX only - it has no
+    # idea whether the path it just accepted is a file the invoking user can
+    # rewrite, which is the difference between "run this one script as root" and
+    # NOPASSWD: ALL. Refuse rather than install a rule that grants standing root.
+    #
+    # Every component of the path matters, not just the file: a writable parent
+    # lets the user replace the file by renaming it. Root-owned and not
+    # group/other-writable is the property being asserted.
+    local p="${APPLY_SCRIPT}"
+    while :; do
+        if [[ -e "${p}" ]]; then
+            local owner perms
+            owner="$(stat -c '%U' "${p}")"
+            perms="$(stat -c '%a' "${p}")"
+            if [[ "${owner}" != "root" ]]; then
+                log_error "Refusing to grant NOPASSWD on ${APPLY_SCRIPT}: ${p} is owned by '${owner}', not root."
+                log_error "A sudoers rule naming a user-writable path is equivalent to NOPASSWD: ALL."
+                return 1
+            fi
+            if [[ "${perms: -1}" =~ [2367] || "${perms: -2:1}" =~ [2367] ]]; then
+                log_error "Refusing to grant NOPASSWD on ${APPLY_SCRIPT}: ${p} is group- or world-writable (${perms})."
+                return 1
+            fi
+        fi
+        [[ "${p}" == "/" ]] && break
+        p="$(dirname "${p}")"
+    done
 
     local sudoers_rule="${USERNAME} ALL=(ALL) NOPASSWD: ${APPLY_SCRIPT}"
     local temp_file
