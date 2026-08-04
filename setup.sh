@@ -16,6 +16,16 @@ readonly LEGACY_THEME_NAME="ii-sddm-theme"
 # on each install. THEME_REPO is what decides which theme actually lands in
 # /usr/share/sddm/themes.
 readonly THEME_REPO="https://github.com/XephyLon/imi-sddm-theme"
+# Which revision of THEME_REPO to install. A downstream pins this repo by
+# fetching *this file* at a ref, which pinned the installer but not the theme it
+# then cloned - so a hub pinned to a months-old SDDM_REF still laid down
+# whatever main happened to be at that moment, and the pin only looked like one
+# (#5). Passing the same ref through closes that: the installer and the content
+# it installs come from one revision.
+#
+# Empty means "the default branch", which is what someone running setup.sh from
+# a local checkout wants, and what every caller got before this existed.
+readonly THEME_REF="${IMI_SDDM_THEME_REF:-}"
 
 readonly SDDM_THEMES_DIR="${SDDM_THEMES_DIR:-/usr/share/sddm/themes}"
 readonly SDDM_THEME_DEST="${SDDM_THEMES_DIR}/${THEME_NAME}"
@@ -355,6 +365,25 @@ clone_repo_to_temp() {
         log_error "Failed to clone theme repository. Please check your internet connection and the repository URL."
         exit 1
     fi
+
+    if [[ -n "${THEME_REF}" ]]; then
+        # Fetched separately rather than via `clone --branch`, which takes a
+        # branch or tag name and rejects a raw SHA - and a SHA is exactly what a
+        # downstream should be pinning, since a tag can be force-moved out from
+        # under a release that already shipped.
+        log_info "Checking out pinned revision ${THEME_REF:0:12}..."
+        if ! git -C "${CLONE_DIR}" fetch --depth 1 origin "${THEME_REF}"; then
+            log_error "Could not fetch ${THEME_REF} from ${THEME_REPO}."
+            log_error "Refusing to fall back to the default branch: that would install a revision nobody asked for, which is the bug this pin exists to prevent."
+            exit 1
+        fi
+        if ! git -C "${CLONE_DIR}" checkout -q FETCH_HEAD; then
+            log_error "Fetched ${THEME_REF} but could not check it out."
+            exit 1
+        fi
+        log_ok "Theme repository pinned at ${THEME_REF:0:12}."
+    fi
+
     log_ok "Theme repository cloned successfully to ${CLONE_DIR}."
 }
 
