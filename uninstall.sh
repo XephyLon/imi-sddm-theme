@@ -20,8 +20,12 @@ readonly SDDM_CONF_DIR="${SDDM_CONF_DIR:-/etc/sddm.conf.d}"
 # settings module's kde_settings.conf and /etc/sddm.conf itself. Uninstall has
 # to read the same set to put them back.
 readonly SDDM_MAIN_CONF="${SDDM_MAIN_CONF:-/etc/sddm.conf}"
-readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/${THEME_NAME}.conf"
-readonly LEGACY_SDDM_THEME_DEST="/usr/share/sddm/themes/${LEGACY_THEME_NAME}"
+# Must match setup.sh. The zz- prefix makes the drop-in sort after
+# kde_settings.conf; earlier installs of this fork wrote the unprefixed name,
+# and pre-fork ones the legacy name, so all three have to be cleaned up.
+readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/zz-${THEME_NAME}.conf"
+readonly PREV_SDDM_THEME_CONF="${SDDM_CONF_DIR}/${THEME_NAME}.conf"
+readonly LEGACY_SDDM_THEME_DEST="${SDDM_THEMES_DIR}/${LEGACY_THEME_NAME}"
 readonly LEGACY_SDDM_THEME_CONF="${SDDM_CONF_DIR}/${LEGACY_THEME_NAME}.conf"
 readonly LEGACY_HYPR_THEME_SCRIPTS_DEST="${HOME}/.config/${LEGACY_THEME_NAME}"
 
@@ -132,6 +136,7 @@ sddm_configs() {
         [[ -f "${conf}" ]] || continue
         # Our own drop-ins are deleted wholesale by remove_sddm_conf.
         [[ "${conf}" == "${SDDM_THEME_CONF}" ]] && continue
+        [[ "${conf}" == "${PREV_SDDM_THEME_CONF}" ]] && continue
         [[ "${conf}" == "${LEGACY_SDDM_THEME_CONF}" ]] && continue
         printf '%s\n' "${conf}"
     done
@@ -241,6 +246,11 @@ remove_sddm_conf() {
     if [[ -f "${LEGACY_SDDM_THEME_CONF}" ]]; then
         sudo rm -f "${LEGACY_SDDM_THEME_CONF}"
         log_ok "Removed ${LEGACY_SDDM_THEME_CONF} (pre-rename install)"
+    fi
+
+    if [[ -f "${PREV_SDDM_THEME_CONF}" ]]; then
+        sudo rm -f "${PREV_SDDM_THEME_CONF}"
+        log_ok "Removed ${PREV_SDDM_THEME_CONF} (installed before the zz- prefix)"
     fi
 
     if [[ -f "${SDDM_THEME_CONF}" ]]; then

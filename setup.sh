@@ -17,14 +17,25 @@ readonly LEGACY_THEME_NAME="ii-sddm-theme"
 # /usr/share/sddm/themes.
 readonly THEME_REPO="https://github.com/XephyLon/imi-sddm-theme"
 
-readonly SDDM_THEMES_DIR="/usr/share/sddm/themes"
+readonly SDDM_THEMES_DIR="${SDDM_THEMES_DIR:-/usr/share/sddm/themes}"
 readonly SDDM_THEME_DEST="${SDDM_THEMES_DIR}/${THEME_NAME}"
-readonly SDDM_CONF_DIR="/etc/sddm.conf.d"
-# SDDM reads this before the drop-ins. Overridable purely so the legacy-name
-# migration can be exercised against a sandbox instead of the real /etc.
+readonly SDDM_CONF_DIR="${SDDM_CONF_DIR:-/etc/sddm.conf.d}"
+# Per man 5 sddm.conf, configuration is loaded /usr/lib/sddm/sddm.conf.d, then
+# /etc/sddm.conf.d, then /etc/sddm.conf, "with the latter having highest
+# precedence" - so this file outranks every drop-in, including ours. Overridable
+# purely so the legacy-name migration can be exercised against a sandbox instead
+# of the real /etc.
 readonly SDDM_MAIN_CONF="${SDDM_MAIN_CONF:-/etc/sddm.conf}"
 readonly LEGACY_SDDM_THEME_CONF="${SDDM_CONF_DIR}/${LEGACY_THEME_NAME}.conf"
-readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/${THEME_NAME}.conf"
+# Within /etc/sddm.conf.d later filenames win, so the drop-in has to sort after
+# anything that might set its own [Theme] Current= - in practice
+# kde_settings.conf, written by the KDE "Login Screen (SDDM)" module. Both
+# "ii-sddm-theme.conf" and "imi-sddm-theme.conf" sort *before* it and lost
+# silently: the install reported success and the greeter kept the old theme.
+readonly SDDM_THEME_CONF="${SDDM_CONF_DIR}/zz-${THEME_NAME}.conf"
+# The unprefixed name this fork used before the zz- prefix. Left in place it
+# would be a second file setting Current=, so the install cleans it up.
+readonly PREV_SDDM_THEME_CONF="${SDDM_CONF_DIR}/${THEME_NAME}.conf"
 
 readonly HYPR_SCRIPTS_BASE="${HOME}/.config"
 readonly HYPR_THEME_SCRIPTS_DEST="${HYPR_SCRIPTS_BASE}/${THEME_NAME}"
@@ -429,6 +440,26 @@ Current=${THEME_NAME}
 EOF
 
     log_ok "SDDM configuration written to ${SDDM_THEME_CONF}"
+
+    # An earlier install of this fork wrote the unprefixed name, which sorts
+    # before kde_settings.conf. Two of our own files setting Current= would be
+    # decided by filename order, so drop the one that loses.
+    if [[ -f "${PREV_SDDM_THEME_CONF}" ]]; then
+        sudo rm -f "${PREV_SDDM_THEME_CONF}" \
+            && log_ok "Removed superseded ${PREV_SDDM_THEME_CONF}"
+    fi
+
+    # /etc/sddm.conf outranks every drop-in, so a Current= there beats anything
+    # we just wrote. Several third-party theme installers write it directly.
+    # Nothing here edits that file - it is not ours - but reporting success
+    # while the greeter is about to show something else is worse than a warning.
+    if [[ -f "${SDDM_MAIN_CONF}" ]] \
+        && grep -qE "^[[:space:]]*Current[[:space:]]*=" "${SDDM_MAIN_CONF}" \
+        && ! grep -qE "^[[:space:]]*Current[[:space:]]*=[[:space:]]*${THEME_NAME}[[:space:]]*$" "${SDDM_MAIN_CONF}"; then
+        log_warn "${SDDM_MAIN_CONF} sets its own theme and outranks every drop-in:"
+        grep -nE "^[[:space:]]*Current[[:space:]]*=" "${SDDM_MAIN_CONF}" | sed "s|^|    ${SDDM_MAIN_CONF}:|" >&2
+        log_warn "The greeter will keep using that theme. Set it to ${THEME_NAME} there, or remove the line."
+    fi
 }
 
 # === LEGACY NAME MIGRATION ===
@@ -436,10 +467,12 @@ EOF
 # This theme installed as "ii-sddm-theme" before the fork. Renaming it is not
 # just a directory move, because the theme name is a *value* SDDM resolves:
 # [Theme] Current= names a directory under /usr/share/sddm/themes, and SDDM
-# reads /etc/sddm.conf then every /etc/sddm.conf.d/*.conf in lexical order,
-# last one winning. Our own drop-in is therefore not authoritative - anything
-# sorting after it (kde_settings.conf is the common one, and it is written by
-# the KDE settings module, not by us) can carry its own Current=ii-sddm-theme.
+# loads /usr/lib/sddm/sddm.conf.d, then /etc/sddm.conf.d/*.conf in lexical
+# order, then /etc/sddm.conf - "the latter having highest precedence"
+# (man 5 sddm.conf). So our drop-in is not authoritative: any drop-in sorting
+# after it (kde_settings.conf is the common one, written by the KDE settings
+# module, not by us) and /etc/sddm.conf unconditionally can carry their own
+# Current=ii-sddm-theme.
 #
 # So removing the old directory while some later file still points at it leaves
 # SDDM with a theme name that resolves to nothing, which is a broken greeter on
@@ -730,4 +763,8 @@ main() {
     fi
 }
 
-main "$@"
+# Only run when executed, not when sourced, so individual functions can be
+# exercised against a temporary tree without installing anything.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
