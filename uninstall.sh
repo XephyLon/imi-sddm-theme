@@ -95,12 +95,20 @@ introduction() {
     printf "  ${STY_YELLOW}Note:${STY_RST} This will remove the theme, SDDM configuration, scripts,\n"
     printf "        fonts, matugen block, and sudoers rule.\n"
     printf "\n"
-    read -r -p "===> Continue? [y/n]: " p
+    # Declining, and failing to ask at all, both have to be distinguishable from
+    # "removed everything successfully" by the caller. The hub runs this from
+    # sdata/subcmd-uninstall/0.run.sh and only prints its "remove it manually"
+    # hint on a non-zero exit - so exiting 0 here meant a run with no terminal
+    # EOF'd on this prompt, removed nothing, and reported success.
+    if ! read -r -p "===> Continue? [y/n]: " p; then
+        log_error "No answer on stdin (not a terminal?). Nothing was removed."
+        exit 1
+    fi
     case $p in
         y|Y) ;;
         *)
-            log_error "Uninstallation aborted by user."
-            exit 0
+            log_error "Uninstallation aborted by user. Nothing was removed."
+            exit 1
             ;;
     esac
 }
