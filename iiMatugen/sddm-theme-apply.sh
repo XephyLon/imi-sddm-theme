@@ -104,8 +104,18 @@ if [ -f "$SETTINGS_QML_SOURCE" ]; then
     # project, at the cost of being a preview-sized image rather than a
     # full-resolution still - a scene wallpaper has no full-res still at all.
     we_still="$(we_field activePreview)"
+    # activeStill is a full-resolution render of the project, produced by the
+    # shell (which has a GPU session; this script runs as root through sudo and
+    # does not) and cached per project. It is preferred over the preview when
+    # present, and absent is normal: rendering is asynchronous, so the first
+    # apply after a switch may still see the thumbnail. The field was removed in
+    # immaterial-impulse#103 for having no writer and reinstated once it had
+    # one, so an empty value is the only thing that must be handled - a stale
+    # one is no longer possible.
+    we_native="$(we_field activeStill)"
     we_dir="${we_dir/#\~/$USER_HOME}"
     we_still="${we_still/#\~/$USER_HOME}"
+    we_native="${we_native/#\~/$USER_HOME}"
 
     # No project, or a "web" one: leave WALLPAPER_PATH empty so the static
     # wallpaper below is used, exactly as the shell does.
@@ -159,6 +169,14 @@ except Exception:
                 fi
             fi
         fi
+    fi
+
+    # A scene cannot be played or sampled here - the greeter has no Wallpaper
+    # Engine runtime - so the shell's render is the only full-resolution source
+    # there is. Preferred over the preview for every project type.
+    if [ -z "$WALLPAPER_PATH" ] && [ -n "$we_native" ] && [ -f "$we_native" ]; then
+        WALLPAPER_PATH="$we_native"
+        echo "Using the shell's full-resolution Wallpaper Engine still: $WALLPAPER_PATH" >&2
     fi
 
     if [ -z "$WALLPAPER_PATH" ] && [ -n "$we_still" ] && [ -f "$we_still" ]; then
