@@ -48,6 +48,11 @@ defects below shipped behind a pin nobody noticed was old.
     scripts directory, and superseded drop-ins that still set `Current=`.
 
 ### Changed
+- **`uninstall.sh` exits non-zero when it removes nothing.** Declining the
+  confirmation, and EOF on a closed stdin, both exited 0 — indistinguishable
+  from a successful uninstall, so the hub's "remove it manually" hint never
+  fired for a run that did nothing
+  ([immaterial-impulse#100](https://github.com/XephyLon/immaterial-impulse/issues/100)).
 - `check.sh` only runs `main` when executed, not when sourced, so its checks can
   be driven individually against a sandbox rather than the real system.
 
