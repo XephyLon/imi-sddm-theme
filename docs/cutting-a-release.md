@@ -41,10 +41,25 @@ A `vX.Y.Z` pin makes that legible at a glance.
    ```
 
 5. **Move the hub's pin, in both places.** Until you do, the release reaches
-   nobody:
+   nobody. Pin the **full SHA the tag points at**, not the tag name:
 
-   - `sdata/subcmd-install/5.sddm-theme.sh` → `SDDM_REF="${SDDM_REF:-vX.Y.Z}"`
+   ```bash
+   git rev-parse vX.Y.Z^{commit}
+   ```
+
+   - `sdata/subcmd-install/5.sddm-theme.sh` → `SDDM_REF="${SDDM_REF:-<sha>}"`
    - `sdata/subcmd-uninstall/0.run.sh` → the same value
+
+   The hub enforces this (`test_the_pin_is_a_full_commit_sha`), and the reason is
+   worth keeping: a tag can be force-moved, so pinning one lets the theme change
+   under a release that already shipped. A SHA cannot. This differs from
+   `WE_REF`, which pins a *tag* on purpose — there the tag selects a published
+   release artifact, and the installer's prebuilt fast path only triggers for a
+   `v*` ref.
+
+   Staleness is still visible: `repo-status` asks GitHub whether the pin is the
+   tip of the satellite's default branch, so a SHA pin no longer goes stale
+   silently the way it did before that check existed.
 
    The hub has a test pinning that those two agree
    (`dots/.config/quickshell/imi/tests/test_sddm_theme_source.py`). It checks
