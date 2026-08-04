@@ -14,6 +14,8 @@ defects below shipped behind a pin nobody noticed was old.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-04
+
 ### Fixed
 - **A downstream `SDDM_REF` pin did not cover the theme content.** A caller pins
   this repo by fetching `setup.sh` at a ref — but `setup.sh` then cloned the
