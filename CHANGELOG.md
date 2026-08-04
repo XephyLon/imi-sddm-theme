@@ -14,6 +14,8 @@ defects below shipped behind a pin nobody noticed was old.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-04
+
 ### Fixed
 - **`check.sh` reported FAIL on a correct install.** It still described the
   pre-rename layout end to end — `ii-sddm-theme` everywhere, the unprefixed
