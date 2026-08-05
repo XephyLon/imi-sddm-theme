@@ -96,26 +96,37 @@ if [ -f "$SETTINGS_QML_SOURCE" ]; then
     }
     we_type="$(we_field activeType | tr '[:upper:]' '[:lower:]')"
     we_dir="$(we_field activePath)"
-    # activePreview, not activeStill. The still was written by shell code that
-    # the selector-only refactor removed, so it sits frozen at whatever project
-    # was active that day and the greeter served a wallpaper from months ago
-    # (immaterial-impulse#103). activePreview is written by
-    # WallpaperEngine.apply() on every switch and always names the active
-    # project, at the cost of being a preview-sized image rather than a
-    # full-resolution still - a scene wallpaper has no full-res still at all.
+    # The fallback. activePreview is written by WallpaperEngine.apply() on every
+    # switch and always names the active project, at the cost of being a
+    # preview-sized thumbnail rather than a full-resolution image.
     we_still="$(we_field activePreview)"
-    # activeStill is a full-resolution render of the project, produced by the
-    # shell (which has a GPU session; this script runs as root through sudo and
-    # does not) and cached per project. It is preferred over the preview when
-    # present, and absent is normal: rendering is asynchronous, so the first
-    # apply after a switch may still see the thumbnail. The field was removed in
-    # immaterial-impulse#103 for having no writer and reinstated once it had
-    # one, so an empty value is the only thing that must be handled - a stale
-    # one is no longer possible.
-    we_native="$(we_field activeStill)"
+    # The shell caches a full-resolution still of the active project - it grabs
+    # it off the live Wallpaper Engine surface, which it can do because the
+    # renderer is embedded in the shell process; this script runs as root
+    # through sudo and has neither a GPU session nor the shell to ask.
+    #
+    # DERIVED from activeProject, deliberately not read from a field. A stored
+    # path is what immaterial-impulse#103 was about: nothing rewrote it, so it
+    # froze at whatever project was active that day and the greeter served that
+    # wallpaper for months. The stale values are still sitting in every saved
+    # preset. A path computed from the project the config *currently* names
+    # cannot disagree with that project - there is nothing to go stale.
+    #
+    # Absent is normal, not an error: no still exists until the wallpaper has
+    # been applied at least once since the shell gained this, a stock Quickshell
+    # build has no Wallpaper Engine module and never grabs one, and the greeter
+    # falls back to the preview below in both cases.
+    #
+    # $HOME/.cache is assumed rather than XDG_CACHE_HOME resolved: sudo's
+    # env_reset means the user's environment is not visible here, so a custom
+    # XDG_CACHE_HOME simply misses and falls back to the preview.
+    we_project="$(we_field activeProject)"
+    we_native=""
+    if [ -n "$we_project" ]; then
+        we_native="$USER_HOME/.cache/quickshell/wallpaperengine-stills/$we_project.png"
+    fi
     we_dir="${we_dir/#\~/$USER_HOME}"
     we_still="${we_still/#\~/$USER_HOME}"
-    we_native="${we_native/#\~/$USER_HOME}"
 
     # No project, or a "web" one: leave WALLPAPER_PATH empty so the static
     # wallpaper below is used, exactly as the shell does.
