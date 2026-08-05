@@ -14,6 +14,37 @@ defects below shipped behind a pin nobody noticed was old.
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-08-05
+
+### Fixed
+- **The greeter showed a ~1000px Workshop thumbnail stretched across the whole
+  display.** For a Wallpaper Engine wallpaper the theme had one usable source,
+  `activePreview` — a Steam Workshop thumbnail, often square and around 1000px.
+  On a wide display that is cropped to a narrow band and upscaled several times
+  over ([immaterial-impulse#113](https://github.com/XephyLon/immaterial-impulse/issues/113));
+  measured here as a 910x910 preview on 5120x1440. Two paths now avoid it:
+  - **An oversized video has a frame cut from it** instead of falling back to
+    the thumbnail. The video *is* the wallpaper at its real resolution, so a
+    frame from it matches the display exactly, costs about a second, and lands
+    at roughly the size of the preview it replaces (1.0 MiB at `-q:v 2` against
+    678 KiB — for 5120x1440 instead of 1024x1024). The size cap itself is
+    unchanged; copying a gigabyte onto `/usr/share` is still a bad trade. What
+    changed is what happens when it fires.
+  - **A shell-rendered still is preferred when present.** A scene cannot be
+    played or sampled here — the greeter has no Wallpaper Engine runtime — so
+    the shell renders the project at the display's own size and records the
+    path as `activeStill`. Preferred for every project type: a rendered still
+    beats a thumbnail regardless, and the video branch already takes precedence
+    where a real video is usable. Absent is normal rather than an error —
+    rendering is asynchronous, so the first apply after a switch can still see
+    the thumbnail, and a machine without the Wallpaper Engine extra never
+    produces one.
+
+  Both failures are non-fatal: the preview is still better than nothing, and a
+  login screen must not fail to apply over a thumbnail. Requires the shell side
+  ([immaterial-impulse#117](https://github.com/XephyLon/immaterial-impulse/pull/117))
+  for the `activeStill` path; the video path stands alone.
+
 ## [0.2.1] — 2026-08-04
 
 ### Fixed
