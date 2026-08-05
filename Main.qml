@@ -19,6 +19,28 @@ Pane {
 
     readonly property variant screenGeometry: screenModel.geometry(screenModel.primary)
 
+    // The shell lets the user pick how a Wallpaper Engine wallpaper is scaled -
+    // "fill" (crop), "fit" (letterbox on black; Wallpaper Engine clears the bars
+    // to black, so black is the faithful bar colour here too), "stretch"
+    // (distort), "default" (native size, centred). The greeter used to hardcode
+    // crop, so any wallpaper whose resolution differed from the screen looked
+    // different at login than on the desktop.
+    //
+    // Scenes are immune either way: their still is grabbed off the live surface
+    // at screen size with the scaling already baked in, so every mode below is
+    // an identity transform for them. This matters for the paths where the
+    // greeter scales the source itself - a video wallpaper, the frame cut from
+    // an oversized video, and the preview fallback.
+    //
+    // Applied only when the background actually comes from Wallpaper Engine
+    // (same weActive mirror as the apply script): the static wallpaper never
+    // had a scaling choice, and changing how it is shown would repaint every
+    // non-WE login for no stated reason.
+    readonly property bool weBackground: (Settings.wallpaperSelector_wallpaperEngine_activePath || "") !== ""
+        && (Settings.wallpaperSelector_wallpaperEngine_activeType || "").toLowerCase() !== "web"
+    readonly property string weScaling: weBackground
+        ? (Settings.wallpaperSelector_wallpaperEngine_scaling || "fill") : "fill"
+
     padding: 0
     focus: true
     anchors.fill: parent
@@ -43,7 +65,10 @@ Pane {
             anchors.fill: parent
             horizontalAlignment: Image.AlignHCenter
             verticalAlignment: Image.AlignVCenter
-            fillMode: Image.PreserveAspectCrop
+            fillMode: root.weScaling === "fit" ? Image.PreserveAspectFit
+                : root.weScaling === "stretch" ? Image.Stretch
+                : root.weScaling === "default" ? Image.Pad
+                : Image.PreserveAspectCrop
             speed: config.BackgroundSpeed || 1
             paused: config.PauseBackground == "true"
             asynchronous: true
@@ -71,9 +96,13 @@ Pane {
             Rectangle {
                 anchors.fill: parent
                 color: config.DimBackgroundColor || "#000000"
-                visible: parent.showFallbackColor || 
-                        (player.playbackState !== MediaPlayer.PlayingState && 
-                         parent.isVideo && 
+                // Also the letterbox/pillarbox bars for "fit" and the border for
+                // "default" - Wallpaper Engine draws those black on the desktop,
+                // and DimBackgroundColor defaults to exactly that.
+                visible: parent.showFallbackColor ||
+                        root.weScaling === "fit" || root.weScaling === "default" ||
+                        (player.playbackState !== MediaPlayer.PlayingState &&
+                         parent.isVideo &&
                          !config.BackgroundPlaceholder)
                 z: -2
             }
@@ -82,6 +111,14 @@ Pane {
                 anchors.fill: parent
                 source: backgroundImage.isVideo ? (config.BackgroundPlaceholder || "") : ""
                 visible: source !== "" && player.playbackState !== MediaPlayer.PlayingState
+                // The poster frame for the video underneath - same resolution,
+                // so it must scale the same way or the login flashes a
+                // differently-framed image the instant playback starts. It had
+                // no fillMode at all before, which in Qt means Stretch: on a
+                // "fill" (crop) video the placeholder appeared distorted.
+                fillMode: backgroundImage.fillMode
+                horizontalAlignment: Image.AlignHCenter
+                verticalAlignment: Image.AlignVCenter
                 cache: true
                 asynchronous: false
                 z: -1
@@ -105,7 +142,12 @@ Pane {
             VideoOutput {
                 id: videoOutput
                 anchors.fill: parent
-                fillMode: VideoOutput.PreserveAspectCrop
+                // VideoOutput has no Pad, so "default" falls back to crop; the
+                // shell's selector only offers fill/fit/stretch, so that case
+                // is unreachable from the UI anyway.
+                fillMode: root.weScaling === "fit" ? VideoOutput.PreserveAspectFit
+                    : root.weScaling === "stretch" ? VideoOutput.Stretch
+                    : VideoOutput.PreserveAspectCrop
             }
         }
 
