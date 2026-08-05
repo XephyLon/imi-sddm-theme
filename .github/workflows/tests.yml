@@ -1,0 +1,18 @@
+# Static test suite - QML is pinned by reading it, not running it, because a
+# greeter needs a session CI does not have. Discovery picks up every
+# tests/test_*.py; the doc-citation lint stays in docs.yml because it needs
+# full git history and nothing else here does.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run static tests
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v
