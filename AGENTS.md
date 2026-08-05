@@ -133,6 +133,22 @@ shell gained the grab, and a stock Quickshell build has no Wallpaper Engine modu
 The greeter runs as the `sddm` user, not the human — a wallpaper on a path only the user can read is a
 greeter that fails to draw its background. Treat that as a login-path failure, not a cosmetic one.
 
+**The user's scaling choice (`wallpaperSelector_wallpaperEngine_scaling`: fill/fit/stretch) must be
+respected by every path that scales the source itself** — the video, the cut frame, the preview
+fallback (1793562 ("fix(theme): respect the shell's Wallpaper Engine scaling choice")). Scenes are
+immune: their still is grabbed at screen size with scaling baked in. Two traps found fixing this: a
+QML `Image` with no `fillMode` is **Stretch**, not crop — the video poster frame shipped distorted
+that way — and the mapping must gate on the same weActive mirror as everything else, or it silently
+changes how static wallpapers render.
+
+**The generated `Settings.qml` installs to `Components/Settings.qml`, not the theme root** — that is
+the registered singleton (`Components/qmldir`), and a copy placed at the root is silently ignored
+while every `Settings.*` read falls back to the shipped defaults (1793562 ("fix(theme): respect the
+shell's Wallpaper Engine scaling choice") — its first verification run hit exactly this). Any new
+`Settings.*` consumer needs the property declared in **both** default copies
+(`Components/Settings.qml` and `noMatugen/Settings.qml`); a missing declaration reads `undefined`
+with nothing logged.
+
 ### Uninstall
 
 `uninstall.sh` must remove installs under **both** the old and new theme names, must not delete a theme
