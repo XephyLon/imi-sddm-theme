@@ -5,6 +5,14 @@ pragma Singleton
 // On the comment on the right there are all possible options
 QtObject {
     property string panelFamily: "ii" // "ii", "waffle"
+    // Wallpaper Engine state, normally filled in by the shell's generated
+    // Settings.qml. Declared here so a stock (no-matugen) install resolves the
+    // same names Main.qml reads instead of warning on every login. Empty
+    // activePath = no WE wallpaper, which keeps the crop behaviour a stock
+    // install always had.
+    property string wallpaperSelector_wallpaperEngine_activePath: ""
+    property string wallpaperSelector_wallpaperEngine_activeType: ""
+    property string wallpaperSelector_wallpaperEngine_scaling: "fill" // "fill", "fit", "stretch", "default"
     property string time_format: "h:mm ap" // "hh:mm","h:mm ap","h:mm AP"
     property string background_widgets_clock_styleLocked: "digital" // "none", "digital", "cookie"
     property string background_widgets_clock_digital_font_family: "Google Sans Flex" // "any font installed systemwide"

@@ -5,6 +5,16 @@ pragma Singleton
 // On the comment on the right there are all possible options
 QtObject {
     property string panelFamily: "ii" // "ii", "waffle"
+    // Wallpaper Engine state, overwritten by the shell's generated Settings.qml
+    // on every theme apply (sddm-theme-apply.sh installs it over THIS file -
+    // Components/Settings.qml is the registered singleton; there is no
+    // theme-root copy). Declared in the default so a fresh install resolves
+    // the names Main.qml reads before the first apply ever runs. Empty
+    // activePath = no WE wallpaper, which keeps the crop behaviour a fresh
+    // install always had.
+    property string wallpaperSelector_wallpaperEngine_activePath: ""
+    property string wallpaperSelector_wallpaperEngine_activeType: ""
+    property string wallpaperSelector_wallpaperEngine_scaling: "fill" // "fill", "fit", "stretch", "default"
     property string time_format: "h:mm ap" // "hh:mm","h:mm ap","h:mm AP"
     property string background_widgets_clock_styleLocked: "digital" // "none", "digital", "cookie"
     property real background_widgets_clock_digital_font_roundness: 1.45 
