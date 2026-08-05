@@ -66,6 +66,7 @@ readonly SUDOERS_FILE="/etc/sudoers.d/sddm-theme-${USERNAME}"
 
 readonly MATUGEN_QML_INPUT_TEMPLATE="${HYPR_THEME_SCRIPTS_DEST}/SddmColors.qml"
 readonly MATUGEN_GENERATE_SETTINGS_SCRIPT="${HYPR_THEME_SCRIPTS_DEST}/generate_settings.py"
+readonly MATUGEN_SYNC_SCRIPT="${HYPR_THEME_SCRIPTS_DEST}/sddm-theme-sync.sh"
 readonly MATUGEN_CONF="${HOME}/.config/matugen/config.toml"
 
 # The shell renamed itself illogical-impulse -> immaterial-impulse. Prefer the
@@ -455,6 +456,11 @@ copy_specific_files_to_hypr() {
         log_ok "Made ${MATUGEN_GENERATE_SETTINGS_SCRIPT} executable."
     fi
 
+    if [[ -f "${MATUGEN_SYNC_SCRIPT}" ]]; then
+        chmod +x "${MATUGEN_SYNC_SCRIPT}"
+        log_ok "Made ${MATUGEN_SYNC_SCRIPT} executable."
+    fi
+
     log_ok "Specific files copied and permissions set in ${HYPR_THEME_SCRIPTS_DEST}."
 }
 
@@ -631,7 +637,17 @@ configure_matugen() {
             log_error "Apply script ${APPLY_SCRIPT} not found for ii-matugen integration. Skipping Matugen post-hook configuration."
             return 1
         fi
-        post_hook_command="python3 ~/.config/${THEME_NAME}/generate_settings.py && sudo ${APPLY_SCRIPT} &"
+        # The sync wrapper generates, fingerprints what the greeter consumes,
+        # and escalates to the root apply only on a real change. It is the one
+        # entry point every trigger shares - this hook and the shell's
+        # GreeterSync observer - so a spurious trigger costs a hash, not a
+        # root copy. Falls back to the old inline pipeline if a stale checkout
+        # somehow lacks the wrapper.
+        if [[ -f "${MATUGEN_SYNC_SCRIPT}" ]]; then
+            post_hook_command="bash ~/.config/${THEME_NAME}/sddm-theme-sync.sh &"
+        else
+            post_hook_command="python3 ~/.config/${THEME_NAME}/generate_settings.py && sudo ${APPLY_SCRIPT} &"
+        fi
     elif [[ "${INSTALLATION_TYPE}" == "matugen-only" ]]; then
         if [[ ! -f "${APPLY_SCRIPT}" ]]; then
             log_error "Apply script ${APPLY_SCRIPT} not found for Matugen-only integration. Skipping Matugen post-hook configuration."
