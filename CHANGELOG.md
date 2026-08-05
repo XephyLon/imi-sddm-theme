@@ -14,6 +14,31 @@ defects below shipped behind a pin nobody noticed was old.
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-08-05
+
+### Changed
+- **The full-resolution still's path is derived from `activeProject`, not read from a stored
+  field.** v0.2.2 taught the apply script to prefer `activeStill` — the very field
+  [immaterial-impulse#103](https://github.com/XephyLon/immaterial-impulse/issues/103) was filed
+  about: a stored path with no writer freezes at whatever project was active the day its writer
+  disappeared, and this script served that wallpaper for months. The hub has now removed the field
+  from its schema entirely; the still is cached at
+  `~/.cache/quickshell/wallpaperengine-stills/<activeProject>.png` and this script computes that
+  path from the project the config currently names, so it cannot disagree with it and the stale
+  values still sitting in saved presets are unreachable. Absent stays non-fatal — the preview
+  fallback is unchanged, which also keeps this release compatible with a hub older than 0.17.1
+  (nothing produces the derived file there; the greeter just keeps the preview).
+  `$HOME/.cache` is assumed rather than `XDG_CACHE_HOME` resolved: `sudo`'s `env_reset` hides the
+  user's environment here, so a custom cache location misses and falls back to the preview.
+
+### Added
+- **Agent-doc governance, and this repo's first CI.** `AGENTS.md` is read sequentially in full
+  before any work (rule mirrored in a repo-root `CLAUDE.md`); every point added to it must cite the
+  commit that motivated it (`tests/lint_doc_citations.py`, run by the new `docs` workflow, fails on
+  citations resolving to nothing); every PR body must carry a `Docs:` receipt line (new
+  `docs-receipt` workflow). The `tests/` directory is the seed of the harness this repo has been
+  missing.
+
 ## [0.2.2] — 2026-08-05
 
 ### Fixed
