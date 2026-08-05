@@ -2,6 +2,10 @@
 
 Reference for coding agents (and humans) working in this repository.
 
+> **Read this file sequentially, in full, top to bottom, before any work — and again after a
+> context compaction.** Grep hits and section jumps are not reading: the rules that get broken are
+> the ones adjacent to the section someone jumped to.
+
 ## Read this first
 
 **This code runs as root and can lock the user out of their machine.** It installs an SDDM theme into
@@ -15,6 +19,32 @@ theme that does not exist, or a config it cannot parse, is critical.
 **Do not run `setup.sh`, `uninstall.sh`, or `check.sh` while developing.** Not "carefully", not "with
 a backup" — they modify the real system as root. Static review only, unless the user has explicitly
 asked you to install.
+
+## Doc discipline
+
+**Every point added to this file must cite the commit that motivated it** — the change it
+documents, or the mistake it guards against — kernel `Fixes:` style:
+
+```
+bf34d6c ("fix(apply): prefer the shell's full-resolution still over the preview")
+```
+
+A point with no commit behind it is unverifiable folklore; the citation is what lets the next agent
+judge whether the reasoning still applies. `tests/lint_doc_citations.py` (run by
+`.github/workflows/docs.yml` — this repo's first CI) fails on any citation that resolves to nothing
+— by SHA **or** by exact subject line, the fallback existing because rebase merges rewrite SHAs and
+the subject is the half that survives.
+
+The worked motivation: bf34d6c ("fix(apply): prefer the shell's full-resolution still over the
+preview") taught this theme to read a stored `activeStill` path — the very field
+[immaterial-impulse#103](https://github.com/XephyLon/immaterial-impulse/issues/103) was filed
+about, restored hub-side without that issue ever being read. A citation on the hub's doc entry
+would have put the issue one click from the person about to repeat it.
+
+**Every PR body must carry a `Docs:` receipt line**, enforced by
+`.github/workflows/docs-receipt.yml`: either `Docs: updated AGENTS.md §<section>` or
+`Docs: not needed — <reason>`. It converts "did you consider the docs" (unverifiable) into a line
+a reviewer checks in seconds.
 
 ## What this is
 
