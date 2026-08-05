@@ -113,7 +113,19 @@ If you do any work near these paths, verify afterwards that `/etc/sddm.conf` and
 The greeter shows the active Wallpaper Engine wallpaper, falling back to the static one. That
 precedence must mirror the shell's `weActive` — a WE project is used when its path is non-empty and its
 type is not `web`. Keys come from the shell's `config.json`
-(`wallpaperSelector.wallpaperEngine.{activePath,activeType,activeStill}`).
+(`wallpaperSelector.wallpaperEngine.{activePath,activeType,activeProject,activePreview}`).
+
+**The full-resolution still's path is DERIVED, never read from a field.** It is
+`~/.cache/quickshell/wallpaperengine-stills/<activeProject>.png`, computed from the project the config
+currently names. Do not "simplify" this by reading a stored path back — that is
+[immaterial-impulse#103](https://github.com/XephyLon/immaterial-impulse/issues/103) exactly: a stored
+`activeStill` had no writer once the renderer moved in-process, so it froze at whatever project was
+active that day and this script served that wallpaper for months. Those stale values are still sitting
+in every saved preset. A path derived from `activeProject` cannot disagree with `activeProject`.
+
+Absent is normal and must stay non-fatal: no still exists until a wallpaper has been applied since the
+shell gained the grab, and a stock Quickshell build has no Wallpaper Engine module at all. Fall back to
+`activePreview` — a login screen must not fail to apply over a missing thumbnail.
 
 The greeter runs as the `sddm` user, not the human — a wallpaper on a path only the user can read is a
 greeter that fails to draw its background. Treat that as a login-path failure, not a cosmetic one.
