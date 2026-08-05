@@ -149,6 +149,20 @@ shell's Wallpaper Engine scaling choice") — its first verification run hit exa
 (`Components/Settings.qml` and `noMatugen/Settings.qml`); a missing declaration reads `undefined`
 with nothing logged.
 
+### The sync pipeline
+
+**`sddm-theme-sync.sh` is the single entry point for refreshing the greeter, and every trigger goes
+through it** — matugen's post_hook and the hub's `GreeterSync` observer alike (see the hub spec
+`docs/superpowers/specs/2026-08-05-reactive-greeter-sync-design.md`). It generates, fingerprints
+what the greeter consumes (the generated QML plus the derived still's mtime+size identity), and
+escalates to the root apply **only on a real change**, stamping only after a successful apply so a
+failure is retried rather than recorded (see the introducing commit, subject "feat(sync): one gated
+entry point for every greeter trigger"). Do not add a new trigger that calls `generate_settings.py`
+or `sudo …/sddm-theme-apply.sh` directly: bypassing the gate puts a root copy in whatever hot path
+you are wiring, and bypassing the wrapper forks the fingerprint state. The gate is what makes
+generous observation affordable — hub-side rule: observe the input that changed, never borrow an
+unrelated trigger.
+
 ### Uninstall
 
 `uninstall.sh` must remove installs under **both** the old and new theme names, must not delete a theme
