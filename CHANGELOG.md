@@ -14,6 +14,37 @@ defects below shipped behind a pin nobody noticed was old.
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-08-05
+
+### Fixed
+- **The greeter now respects the shell's Wallpaper Engine scaling choice** (fill / fit / stretch).
+  It hardcoded crop on both the image and the video path, so any wallpaper whose resolution
+  differed from the screen looked different at login than on the desktop. Scenes were already
+  immune — their still is grabbed at screen size with the scaling baked in — so this covers the
+  paths the greeter scales itself: a video wallpaper, the frame cut from an oversized one, and the
+  preview fallback. Two adjacent defects went with it: the video's poster frame had no `fillMode`
+  at all (which in Qt means *Stretch* — it showed distorted, snapping into shape when playback
+  started), and the "fit" letterbox bars now draw on `DimBackgroundColor` (default black, matching
+  what Wallpaper Engine clears on the desktop). Applied only to WE-sourced backgrounds; static
+  wallpapers render exactly as before.
+
+### Changed
+- **Refreshing the greeter is reactive, and root runs only when something changed.** Every trigger
+  — matugen's post_hook and the shell's new `GreeterSync` observer (immaterial-impulse ≥ 0.17.2) —
+  now goes through one entry point, `sddm-theme-sync.sh`: generate, fingerprint what the greeter
+  consumes (the generated QML plus the derived still's identity), and escalate to the privileged
+  apply only when the fingerprint changed. A spurious trigger costs a hash instead of a root copy
+  onto `/usr/share`, which is what lets the shell observe generously: a scaling change now reaches
+  the login screen in seconds without a wallpaper switch, and the still finishing its write is
+  itself a trigger — closing the race where the apply copied before the still existed and the
+  greeter kept the thumbnail until the next unrelated color event. A failed apply is retried by the
+  next trigger rather than recorded as done. No sudoers change: same rule, same root-owned path,
+  strictly fewer invocations.
+
+### Added
+- A `tests` workflow discovering `tests/test_*.py`: the scaling mapping pins and a behavioural
+  drive of the real sync wrapper through the gate's seven cases (sandboxed; `sudo` stubbed).
+
 ## [0.2.3] — 2026-08-05
 
 ### Changed
