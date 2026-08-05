@@ -117,11 +117,14 @@ type is not `web`. Keys come from the shell's `config.json`
 
 **The full-resolution still's path is DERIVED, never read from a field.** It is
 `~/.cache/quickshell/wallpaperengine-stills/<activeProject>.png`, computed from the project the config
-currently names. Do not "simplify" this by reading a stored path back — that is
-[immaterial-impulse#103](https://github.com/XephyLon/immaterial-impulse/issues/103) exactly: a stored
-`activeStill` had no writer once the renderer moved in-process, so it froze at whatever project was
-active that day and this script served that wallpaper for months. Those stale values are still sitting
-in every saved preset. A path derived from `activeProject` cannot disagree with `activeProject`.
+currently names (1f50967 ("fix(apply): derive the still's path instead of reading a stored one")).
+Do not "simplify" this by reading a stored path back — that is
+[immaterial-impulse#103](https://github.com/XephyLon/immaterial-impulse/issues/103) exactly, and
+bf34d6c ("fix(apply): prefer the shell's full-resolution still over the preview") is this repo
+committing it: a stored `activeStill` had no writer once the renderer moved in-process, so it froze
+at whatever project was active that day and this script served that wallpaper for months. Those stale
+values are still sitting in every saved preset. A path derived from `activeProject` cannot disagree
+with `activeProject`.
 
 Absent is normal and must stay non-fatal: no still exists until a wallpaper has been applied since the
 shell gained the grab, and a stock Quickshell build has no Wallpaper Engine module at all. Fall back to
